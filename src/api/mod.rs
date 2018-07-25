@@ -74,13 +74,13 @@ pub extern "C" fn seal(
     let challenge_seed = u32ptr_to_array8(_challenge_seed_ptr);
     let random_seed = u32ptr_to_array8(_random_seed_ptr);
 
-    let out = seal_internal(sector_id, unsealed, sealed, prover_id, challenge_seed, random_seed);
+    let comms = seal_internal(sector_id, unsealed, sealed, prover_id, challenge_seed, random_seed);
 
     // let caller manage this memory, preventing the need for calling back into
     // Rust code later to deallocate
     unsafe {
-        *(result_ptr.offset(0 as isize) as *mut u32) = out[0];
-        *(result_ptr.offset(1 as isize) as *mut u32) = out[1];
+        *(result_ptr.offset(0 as isize) as *mut u32) = comms[0];
+        *(result_ptr.offset(1 as isize) as *mut u32) = comms[1];
     };
 }
 
