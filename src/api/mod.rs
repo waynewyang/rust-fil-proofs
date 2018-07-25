@@ -30,11 +30,15 @@ fn from_cstr(c_str: CstrT) -> String {
 }
 
 fn u32ptr_to_array8(x: *const u32) -> [u32; 8] {
-    let s = unsafe {
-        slice::from_raw_parts(x, 8).to_owned()
-    };
+    let s = unsafe { slice::from_raw_parts(x, 8).to_owned() };
 
-    assert_eq!(s.len(), 8, "actual len(s) = {}, expected len(s) = {}", s.len(), 8);
+    assert_eq!(
+        s.len(),
+        8,
+        "actual len(s) = {}, expected len(s) = {}",
+        s.len(),
+        8
+    );
 
     let mut out: [u32; 8] = Default::default();
     out.copy_from_slice(&s[0..8]);
@@ -42,11 +46,15 @@ fn u32ptr_to_array8(x: *const u32) -> [u32; 8] {
 }
 
 fn u8ptr_to_array31(x: *const u8) -> [u8; 31] {
-    let s = unsafe {
-        slice::from_raw_parts(x, 31).to_owned()
-    };
+    let s = unsafe { slice::from_raw_parts(x, 31).to_owned() };
 
-    assert_eq!(s.len(), 31, "actual len(s) = {}, expected len(s) = {}", s.len(), 31);
+    assert_eq!(
+        s.len(),
+        31,
+        "actual len(s) = {}, expected len(s) = {}",
+        s.len(),
+        31
+    );
 
     let mut out: [u8; 31] = Default::default();
     out.copy_from_slice(&s[0..31]);
@@ -68,13 +76,20 @@ pub extern "C" fn seal(
     _prover_id_ptr: ProverIDPtr,
     _challenge_seed_ptr: ChallengeSeedPtr,
     _random_seed_ptr: RandomSeedPtr,
-    result_ptr: ResultPtr
+    result_ptr: ResultPtr,
 ) -> () {
     let prover_id = u8ptr_to_array31(_prover_id_ptr);
     let challenge_seed = u32ptr_to_array8(_challenge_seed_ptr);
     let random_seed = u32ptr_to_array8(_random_seed_ptr);
 
-    let comms = seal_internal(sector_id, unsealed, sealed, prover_id, challenge_seed, random_seed);
+    let comms = seal_internal(
+        sector_id,
+        unsealed,
+        sealed,
+        prover_id,
+        challenge_seed,
+        random_seed,
+    );
 
     // let caller manage this memory, preventing the need for calling back into
     // Rust code later to deallocate
@@ -130,10 +145,10 @@ mod tests {
 
     #[test]
     fn seal_verify() {
-        let result: [u32;2] = [0; 2];
-        let prover_id : [u8;31] = [1; 31];
-        let challenge_seed: [u32;8] = [2; 8];
-        let random_seed: [u32;8] = [3; 8];
+        let result: [u32; 2] = [0; 2];
+        let prover_id: [u8; 31] = [1; 31];
+        let challenge_seed: [u32; 8] = [2; 8];
+        let random_seed: [u32; 8] = [3; 8];
 
         seal(
             123,
@@ -142,7 +157,7 @@ mod tests {
             &prover_id[0],
             &challenge_seed[0],
             &random_seed[0],
-            &result[0]
+            &result[0],
         );
 
         assert_ne!(result[0], result[1]);
