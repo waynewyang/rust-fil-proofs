@@ -30,28 +30,26 @@ fn from_cstr(c_str: CstrT) -> String {
 }
 
 fn u32ptr_to_array8(x: *const u32) -> [u32; 8] {
-    let mut out: [u32; 8] = Default::default();
     let s = unsafe {
         slice::from_raw_parts(x, 8).to_owned()
     };
 
     assert_eq!(s.len(), 8, "actual len(s) = {}, expected len(s) = {}", s.len(), 8);
 
+    let mut out: [u32; 8] = Default::default();
     out.copy_from_slice(&s[0..8]);
-
     out
 }
 
 fn u8ptr_to_array31(x: *const u8) -> [u8; 31] {
-    let mut out: [u8; 31] = Default::default();
     let s = unsafe {
         slice::from_raw_parts(x, 31).to_owned()
     };
 
     assert_eq!(s.len(), 31, "actual len(s) = {}, expected len(s) = {}", s.len(), 31);
 
+    let mut out: [u8; 31] = Default::default();
     out.copy_from_slice(&s[0..31]);
-
     out
 }
 
