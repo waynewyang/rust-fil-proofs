@@ -68,6 +68,22 @@ fn to_cstring(s: &str) -> CString {
 const DUMMY_COMM_R: Commitment = 12345;
 const DUMMY_COMM_D: Commitment = 54321;
 
+/// Seals a sector.
+///
+/// # Arguments
+///
+/// * `sector_id`           - identity of the unsealed sector
+/// * `unsealed`            - function pointer used to get access to unsealed
+///                           sector
+/// * `sealed`              - function pointer used to get access to sealed
+///                           sector
+/// * `_prover_id_ptr`      - pointer to first cell in a 31-length array of u8
+/// * `_challenge_seed_ptr` - pointer to first cell in a 8-length array of u32
+/// * `_random_seed_ptr`    - pointer to first cell in a 8-length array of u32
+/// * `result_ptr`          - pointer to first cell in a 2-length array of u32,
+///                           mutated by seal in order to pass commitments back
+///                           to caller
+/// ```
 #[no_mangle]
 pub extern "C" fn seal(
     sector_id: SectorID,
