@@ -177,7 +177,12 @@ pub extern "C" fn status_to_string(status_code: u8) -> *const libc::c_char {
 /// * `num_bytes`    - number of bytes to unseal (corresponds to contents of unsealed sector-file)
 /// ```
 #[no_mangle]
-pub extern "C" fn unseal(input_path: SectorAccess, output_path: SectorAccess, start_offset: libc::uint64_t, num_bytes: libc::uint64_t) -> StatusCode {
+pub extern "C" fn unseal(
+    input_path: SectorAccess,
+    output_path: SectorAccess,
+    start_offset: libc::uint64_t,
+    num_bytes: libc::uint64_t,
+) -> StatusCode {
     let in_path = PathBuf::from(from_cstr(input_path));
     let out_path = PathBuf::from(from_cstr(output_path));
 
@@ -218,7 +223,7 @@ fn verify_seal_internal(comm_r: Commitment, comm_d: Commitment) -> bool {
 mod tests {
     use super::*;
     use std::ffi::CString;
-    use std::fs::{write, read_to_string};
+    use std::fs::{read_to_string, write};
     use tempfile;
 
     fn path_to_c_str(p: &PathBuf) -> *const libc::c_char {
@@ -302,7 +307,7 @@ mod tests {
             &prover_id[0],
             &challenge_seed[0],
             &random_seed[0],
-            &result[0]
+            &result[0],
         );
 
         assert_eq!(0, good_seal);
@@ -311,7 +316,7 @@ mod tests {
             path_to_c_str(&seal_output_path),
             path_to_c_str(&unseal_output_path),
             0,
-            length as u64
+            length as u64,
         );
 
         assert_eq!(0, good_unseal);

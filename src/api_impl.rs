@@ -5,8 +5,8 @@ use proof::ProofScheme;
 
 use std::fs::File;
 use std::io::{copy, BufReader, BufWriter, Read};
-use std::path::PathBuf;
 use std::io::{Seek, SeekFrom};
+use std::path::PathBuf;
 
 pub static SECTOR_BYTES: usize = 1 << 10; // For initial development, just make this 1Kb.
 pub static LAMBDA: usize = 32;
