@@ -180,8 +180,8 @@ pub extern "C" fn status_to_string(status_code: u8) -> *const libc::c_char {
 pub extern "C" fn unseal(
     input_path: SectorAccess,
     output_path: SectorAccess,
-    start_offset: libc::uint64_t,
-    num_bytes: libc::uint64_t,
+    start_offset: u64,
+    num_bytes: u64,
 ) -> StatusCode {
     let in_path = PathBuf::from(from_cstr(input_path));
     let out_path = PathBuf::from(from_cstr(output_path));
