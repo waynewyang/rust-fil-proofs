@@ -95,7 +95,7 @@ pub extern "C" fn seal(
     let in_path = PathBuf::from(from_cstr(unsealed));
     let out_path = PathBuf::from(from_cstr(sealed));
 
-    let result = seal_internal(in_path, out_path, prover_id, challenge_seed, random_seed);
+    let result = seal_internal(&in_path, &out_path, prover_id, challenge_seed, random_seed);
 
     match result {
         Ok(comms) => {
@@ -204,13 +204,13 @@ pub extern "C" fn verifyPost() {
 }
 
 fn seal_internal(
-    unsealed: PathBuf,
-    sealed: PathBuf,
+    unsealed: &PathBuf,
+    sealed: &PathBuf,
     _prover_id: ProverID,
     _challenge_seed: ChallengeSeed,
     _random_seed: RandomSeed,
 ) -> Result<[Commitment; 2], String> {
-    let _copied = api_impl::seal(&unsealed, &sealed);
+    let _copied = api_impl::seal(unsealed, sealed);
 
     Ok([DUMMY_COMM_R, DUMMY_COMM_D])
 }
@@ -264,8 +264,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         let comms = seal_internal(
-            dir.path().join("unsealed"),
-            dir.path().join("sealed"),
+            &dir.path().join("unsealed"),
+            &dir.path().join("sealed"),
             [1; 31],
             [2; 32],
             [3; 32],
