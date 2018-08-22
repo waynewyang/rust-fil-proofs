@@ -38,14 +38,14 @@ pub fn seal(in_path: &PathBuf, out_path: &PathBuf) -> Result<(u64)> {
     Ok(bytes_copied)
 }
 
-pub fn unseal(in_path: &PathBuf, out_path: &PathBuf, offset: u64, num_bytes: u64) -> Result<(u64)> {
-    let mut f_in = File::open(in_path)?;
+pub fn unseal(sealed_path: &PathBuf, output_path: &PathBuf, offset: u64, num_bytes: u64) -> Result<(u64)> {
+    let mut f_in = File::open(sealed_path)?;
 
     f_in.seek(SeekFrom::Start(offset))?;
 
     let mut reader = BufReader::new(f_in).take(num_bytes);
 
-    let f_out = File::create(out_path)?;
+    let f_out = File::create(output_path)?;
     let mut buf_writer = BufWriter::new(f_out);
 
     let bytes_copied = copy(&mut reader, &mut buf_writer)?;

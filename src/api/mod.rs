@@ -17,8 +17,9 @@ type StatusCode = u8;
 type ProverIDPtr = *const u8;
 type ChallengeSeedPtr = *const u8;
 type RandomSeedPtr = *const u8;
-type ResultPtr = *const u8;
+type SealResultPtr = *const u8;
 type CommitmentPtr = *const u8;
+type UnsealResultPtr = *mut u64;
 type SectorAccess = *const libc::c_char;
 
 fn from_cstr(c_str: *const libc::c_char) -> String {
@@ -86,7 +87,7 @@ pub extern "C" fn seal(
     prover_id_ptr: ProverIDPtr,
     challenge_seed_ptr: ChallengeSeedPtr,
     random_seed_ptr: RandomSeedPtr,
-    result_ptr: ResultPtr,
+    result_ptr: SealResultPtr,
 ) -> StatusCode {
     let prover_id = u8ptr_to_array31(prover_id_ptr);
     let challenge_seed = u8ptr_to_array32(challenge_seed_ptr);
@@ -152,7 +153,6 @@ pub extern "C" fn status_to_string(status_code: u8) -> *const libc::c_char {
         10 => CString::new("failed to seal"),
         20 => CString::new("invalid replica and/or data commitment"),
         30 => CString::new("failed to unseal"),
-        31 => CString::new("partial unseal"),
         _ => CString::new("unknown status code"),
     }.unwrap();
 
@@ -171,24 +171,29 @@ pub extern "C" fn status_to_string(status_code: u8) -> *const libc::c_char {
 ///
 /// # Arguments
 ///
-/// * `input_path`   - path of sealed sector-file
+/// * `sealed_path`   - path of sealed sector-file
 /// * `output_path`  - path where unsealed sector file's bytes should be written
 /// * `start_offset` - zero-based byte offset in original, unsealed sector-file
 /// * `num_bytes`    - number of bytes to unseal (corresponds to contents of unsealed sector-file)
+/// * `result_ptr`   - pointer to a u64, mutated by unseal in order to communicate the number of
+///                    bytes that were unsealed and written to the output_path
 /// ```
 #[no_mangle]
 pub extern "C" fn unseal(
-    input_path: SectorAccess,
+    sealed_path: SectorAccess,
     output_path: SectorAccess,
     start_offset: u64,
     num_bytes: u64,
+    result_ptr: UnsealResultPtr,
 ) -> StatusCode {
-    let in_path = PathBuf::from(from_cstr(input_path));
-    let out_path = PathBuf::from(from_cstr(output_path));
+    let sealed_path_buf = PathBuf::from(from_cstr(sealed_path));
+    let output_path_buf = PathBuf::from(from_cstr(output_path));
 
-    match api_impl::unseal(&in_path, &out_path, start_offset, num_bytes) {
-        Ok(num_unsealed_bytes) if num_unsealed_bytes == num_bytes => 0,
-        Ok(_) => 31,
+    match api_impl::unseal(&sealed_path_buf, &output_path_buf, start_offset, num_bytes) {
+        Ok(num_unsealed_bytes) => {
+            unsafe { result_ptr.write(num_unsealed_bytes) };
+            0
+        },
         Err(_) => 30,
     }
 }
@@ -224,6 +229,7 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::fs::{read_to_string, write};
+    use std::str::{from_utf8_unchecked};
     use tempfile;
 
     fn path_to_c_str(p: &PathBuf) -> *const libc::c_char {
@@ -292,6 +298,7 @@ mod tests {
         let prover_id: [u8; 31] = [2; 31];
         let challenge_seed: [u8; 32] = [3; 32];
         let random_seed: [u8; 32] = [4; 32];
+        let result_ptr: &mut u64 = &mut 0;
 
         let contents = b"hello, moto";
         let length = contents.len();
@@ -317,15 +324,17 @@ mod tests {
             path_to_c_str(&unseal_output_path),
             0,
             length as u64,
+            result_ptr
         );
 
         assert_eq!(0, good_unseal);
+        assert_eq!(length as u64, *result_ptr);
 
         let buffer = match read_to_string(unseal_output_path) {
             Ok(s) => s,
             Err(err) => panic!(err),
         };
 
-        assert_eq!("hello, moto", buffer);
+        assert_eq!(unsafe { from_utf8_unchecked(contents) }, buffer);
     }
 }
