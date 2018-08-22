@@ -193,7 +193,7 @@ pub extern "C" fn unseal(
         Ok(num_unsealed_bytes) => {
             unsafe { result_ptr.write(num_unsealed_bytes) };
             0
-        },
+        }
         Err(_) => 30,
     }
 }
@@ -229,7 +229,7 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::fs::{read_to_string, write};
-    use std::str::{from_utf8_unchecked};
+    use std::str::from_utf8_unchecked;
     use tempfile;
 
     fn path_to_c_str(p: &PathBuf) -> *const libc::c_char {
@@ -324,7 +324,7 @@ mod tests {
             path_to_c_str(&unseal_output_path),
             0,
             length as u64,
-            result_ptr
+            result_ptr,
         );
 
         assert_eq!(0, good_unseal);
