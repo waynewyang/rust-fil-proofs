@@ -7,9 +7,6 @@ use std::slice;
 use api_impl;
 
 type Commitment = [u8; 32];
-type ProverID = [u8; 31];
-type ChallengeSeed = [u8; 32];
-type RandomSeed = [u8; 32];
 type StatusCode = u8;
 
 // arrays cannot be passed by value in C; callers instead pass a pointer to the
@@ -29,22 +26,6 @@ fn from_cstr(c_str: *const libc::c_char) -> String {
             .to_owned()
             .to_string()
     }
-}
-
-fn u8ptr_to_array31(x: *const u8) -> [u8; 31] {
-    let s = unsafe { slice::from_raw_parts(x, 31).to_owned() };
-
-    assert_eq!(
-        s.len(),
-        31,
-        "actual len(s) = {}, expected len(s) = {}",
-        s.len(),
-        31
-    );
-
-    let mut out: [u8; 31] = Default::default();
-    out.copy_from_slice(&s[0..31]);
-    out
 }
 
 fn u8ptr_to_array32(x: *const u8) -> [u8; 32] {
@@ -82,21 +63,19 @@ const DUMMY_COMM_D: Commitment = *b"09876543210987654321098765432109";
 /// ```
 #[no_mangle]
 pub extern "C" fn seal(
-    unsealed: SectorAccess,
-    sealed: SectorAccess,
-    prover_id_ptr: ProverIDPtr,
-    challenge_seed_ptr: ChallengeSeedPtr,
-    random_seed_ptr: RandomSeedPtr,
+    unsealed_path: SectorAccess,
+    sealed_path: SectorAccess,
+    _prover_id_ptr: ProverIDPtr,
+    _challenge_seed_ptr: ChallengeSeedPtr,
+    _random_seed_ptr: RandomSeedPtr,
     result_ptr: SealResultPtr,
 ) -> StatusCode {
-    let prover_id = u8ptr_to_array31(prover_id_ptr);
-    let challenge_seed = u8ptr_to_array32(challenge_seed_ptr);
-    let random_seed = u8ptr_to_array32(random_seed_ptr);
+    let unsealed_path_buf = PathBuf::from(from_cstr(unsealed_path));
+    let sealed_path_buf = PathBuf::from(from_cstr(sealed_path));
 
-    let in_path = PathBuf::from(from_cstr(unsealed));
-    let out_path = PathBuf::from(from_cstr(sealed));
+    let _copied = api_impl::seal(&unsealed_path_buf, &sealed_path_buf);
 
-    let result = seal_internal(&in_path, &out_path, prover_id, challenge_seed, random_seed);
+    let result: Result<[Commitment; 2], String> = Ok([DUMMY_COMM_R, DUMMY_COMM_D]);
 
     match result {
         Ok(comms) => {
@@ -131,7 +110,7 @@ pub extern "C" fn verify_seal(comm_r_ptr: CommitmentPtr, comm_d_ptr: CommitmentP
     let comm_r = u8ptr_to_array32(comm_r_ptr);
     let comm_d = u8ptr_to_array32(comm_d_ptr);
 
-    if verify_seal_internal(comm_r, comm_d) {
+    if comm_r == DUMMY_COMM_R && comm_d == DUMMY_COMM_D {
         0
     } else {
         20
@@ -208,22 +187,6 @@ pub extern "C" fn verifyPost() {
     unimplemented!()
 }
 
-fn seal_internal(
-    unsealed: &PathBuf,
-    sealed: &PathBuf,
-    _prover_id: ProverID,
-    _challenge_seed: ChallengeSeed,
-    _random_seed: RandomSeed,
-) -> Result<[Commitment; 2], String> {
-    let _copied = api_impl::seal(unsealed, sealed);
-
-    Ok([DUMMY_COMM_R, DUMMY_COMM_D])
-}
-
-fn verify_seal_internal(comm_r: Commitment, comm_d: Commitment) -> bool {
-    comm_r == DUMMY_COMM_R && comm_d == DUMMY_COMM_D
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,28 +226,6 @@ mod tests {
         assert_eq!(0, good_seal);
         assert_eq!(0, good_verify);
         assert_eq!(20, bad_verify);
-    }
-
-    #[test]
-    fn seal_internal_verify() {
-        let dir = tempfile::tempdir().unwrap();
-
-        let comms = seal_internal(
-            &dir.path().join("unsealed"),
-            &dir.path().join("sealed"),
-            [1; 31],
-            [2; 32],
-            [3; 32],
-        );
-
-        match comms {
-            Ok(comms) => {
-                assert_ne!(comms[0], comms[1]);
-                assert!(verify_seal_internal(comms[0], comms[1]));
-                assert!(!verify_seal_internal(comms[1], comms[0]));
-            }
-            Err(_) => panic!("seal_internal failed unexpectedly"),
-        }
     }
 
     #[test]
