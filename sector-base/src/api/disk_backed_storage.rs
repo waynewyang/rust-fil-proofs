@@ -154,8 +154,8 @@ mod tests {
     use super::*;
 
     use api::disk_backed_storage::init_disk_backed_storage;
-    use api::SectorAccess;
     use api::{new_staging_sector_access, num_unsealed_bytes, truncate_unsealed, write_unsealed};
+    use api::SectorAccess;
 
     fn rust_str_to_c_str(s: &str) -> *const libc::c_char {
         CString::new(s).unwrap().into_raw()
