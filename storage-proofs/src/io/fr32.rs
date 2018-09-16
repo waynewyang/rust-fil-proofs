@@ -1,7 +1,65 @@
 use fr32::Fr32Ary;
 use std::cmp;
 use std::fmt::Debug;
-use std::io::{Read, Result, Write};
+use std::io::{self, Read, Result, Write};
+
+use bitvec::{self, BitVec};
+use iter_read::IterRead;
+use itertools::Itertools;
+
+pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<u64>
+where
+    W: Write,
+{
+    let chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
+        .into_iter()
+        .chunks(FR_INPUT_BYTE_LIMIT);
+
+    let padded = chunks.into_iter().flat_map(|chunk| {
+        let mut raw_bits = chunk.into_iter().collect::<Vec<bool>>();
+        println!("bits {}", raw_bits.len());
+
+        // pad
+        while raw_bits.len() < 256 {
+            raw_bits.push(false);
+        }
+
+        let bits = BitVec::<bitvec::LittleEndian, u8>::from(&raw_bits[..]);
+        let out = bits.into_boxed_slice().to_vec();
+        println!("out: {:?}", out);
+        out
+    });
+    let mut reader = IterRead::new(padded);
+    io::copy(&mut reader, target)
+}
+
+pub fn write_unpadded<W: ?Sized>(
+    source: &[u8],
+    target: &mut W,
+    original_len: usize,
+) -> io::Result<u64>
+where
+    W: Write,
+{
+    let chunks1 = BitVec::<bitvec::LittleEndian, u8>::from(source)
+        .into_iter()
+        .chunks(256);
+    let chunks2 = chunks1
+        .into_iter()
+        .flat_map(|chunk| chunk.into_iter().take(FR_INPUT_BYTE_LIMIT))
+        .chunks(8);
+
+    let unpadded = chunks2
+        .into_iter()
+        .map(|chunk| {
+            let raw_bits = chunk.into_iter().collect::<Vec<bool>>();
+            let bits = BitVec::<bitvec::LittleEndian, u8>::from(&raw_bits[..]);
+            bits.into_boxed_slice().to_vec()[0]
+        }).take(original_len);
+
+    let mut reader = IterRead::new(unpadded);
+    io::copy(&mut reader, target)
+}
 
 pub struct Fr32Writer<W> {
     inner: W,
@@ -26,7 +84,8 @@ impl<W: Write> Write for Fr32Writer<W> {
                 self.process_bytes(&buf);
             if more {
                 // We read a complete chunk and should continue.
-                bytes_written += self.ensure_write(&bytes_to_write)?;
+                self.ensure_write(&bytes_to_write)?;
+                bytes_written += bytes_to_write.len();
             } else {
                 // We read an incomplete chunk, so this is the last iteration.
                 // We must have consumed all the bytes in buf.
@@ -38,7 +97,8 @@ impl<W: Write> Write for Fr32Writer<W> {
                 assert!(real_length <= bytes_to_write.len());
 
                 let truncated = &bytes_to_write[0..real_length];
-                bytes_written += self.ensure_write(truncated)?;
+                self.ensure_write(truncated)?;
+                bytes_written += truncated.len();
 
                 if self.prefix_size > 0 {
                     // Since this chunk was incomplete, what would have been the remainder was included as the last byte to write.
@@ -57,7 +117,12 @@ impl<W: Write> Write for Fr32Writer<W> {
             let residual_bytes = &buf[(buf.len() - residual_bytes_size)..buf.len()];
             buf = residual_bytes;
         }
-        Ok(bytes_written)
+        // TODO: proper accounting
+        if bytes_written > buf.len() {
+            Ok(bytes_remaining)
+        } else {
+            Ok(bytes_written)
+        }
     }
 
     fn flush(&mut self) -> Result<()> {
@@ -196,12 +261,12 @@ fn assemble_bytes(mut prefix: u8, prefix_size: usize, bytes: &[u8], suffix: u8) 
         if prefix_size == 0 {
             out[i] |= b;
         } else {
-            let shifted = b << left_shift; // This may overflow 8 bits, truncating the most significant bits.
+            let shifted = b.wrapping_shl(left_shift as u32); // This may overflow 8 bits, truncating the most significant bits.
             out[i] = prefix | shifted;
             prefix = b >> right_shift;
         }
     }
-    out[bytes.len()] = prefix | suffix << left_shift;
+    out[bytes.len()] = prefix | suffix.wrapping_shl(left_shift as u32);
     out
 }
 
@@ -220,6 +285,7 @@ impl<R: Read + Debug> Read for Fr32Reader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
     fn write_test(bytes: &[u8], extra_bytes: &[u8]) -> (usize, Vec<u8>) {
         let mut data = Vec::new();
@@ -263,5 +329,78 @@ mod tests {
         assert_eq!(buf[66], 9 << 4); // Another.
         assert_eq!(buf[67], 0xf0); // The final 0xff is split into two bytes. Here is the first half.
         assert_eq!(buf[68], 0x0f); // And here is the second.
+    }
+
+    #[test]
+    fn test_read() {
+        let data = vec![2u8; 1000];
+
+        let mut padded_data: Vec<u8> = vec![];
+        {
+            let mut pad_writer = Fr32Writer::new(&mut padded_data);
+            pad_writer.write(&data).unwrap();
+        }
+        assert_ne!(data, &padded_data[..]);
+
+        let mut unpadded_data: Vec<u8> = vec![];
+        let mut unpad_reader = Fr32Reader::new(&padded_data[..]);
+
+        let written = io::copy(&mut unpad_reader, &mut unpadded_data).unwrap();
+
+        assert_eq!(data, unpadded_data);
+    }
+
+    #[test]
+    fn test_write_padded() {
+        let data = vec![255u8; 32];
+        let mut padded = Vec::new();
+        let written = write_padded(&data, &mut padded).unwrap();
+        assert_eq!(written, 64);
+        assert_eq!(padded.len(), 64);
+        assert_eq!(&padded[0..31], &data[0..31]);
+        assert_eq!(padded[31], 0b0011_1111);
+        assert_eq!(padded[32], 0b0000_0011);
+        assert_eq!(&padded[33..], vec![0u8; 31].as_slice());
+    }
+
+    #[test]
+    fn test_write_padded_alt() {
+        let mut source = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 0xff, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0xff, 9, 9,
+        ];
+        source.extend(vec![9, 0xff]);
+
+        let mut buf = Vec::new();
+        let write_count = write_padded(&source, &mut buf).unwrap();
+
+        for i in 0..31 {
+            assert_eq!(buf[i], i as u8 + 1);
+        }
+        assert_eq!(buf[31], 63); // Six least significant bits of 0xff
+        assert_eq!(buf[32], (1 << 2) | 0b11); // 7
+        for i in 33..63 {
+            assert_eq!(buf[i], (i as u8 - 31) << 2);
+        }
+        assert_eq!(buf[63], (0x0f << 2)); // 4-bits of ones, half of 0xff, shifted by two, followed by two bits of 0-padding.
+        assert_eq!(buf[64], 0x0f | 9 << 4); // The last half of 0xff, 'followed' by 9.
+        assert_eq!(buf[65], 9 << 4); // A shifted 9.
+        assert_eq!(buf[66], 9 << 4); // Another.
+        assert_eq!(buf[67], 0xf0); // The final 0xff is split into two bytes. Here is the first half.
+        assert_eq!(buf[68], 0x0f); // And here is the second.
+    }
+
+    #[test]
+    fn test_read_write_padded() {
+        let len = 1024;
+        let data = vec![255u8; len];
+        let mut padded = Vec::new();
+        write_padded(&data, &mut padded).unwrap();
+
+        let mut unpadded = Vec::new();
+        write_unpadded(&padded, &mut unpadded, len).unwrap();
+
+        assert_eq!(data, unpadded);
     }
 }

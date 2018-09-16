@@ -50,6 +50,8 @@ extern crate pbr;
 extern crate log;
 extern crate colored;
 
+extern crate iter_read;
+
 #[macro_use]
 pub mod test_helper;
 

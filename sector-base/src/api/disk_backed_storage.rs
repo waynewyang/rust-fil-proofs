@@ -5,6 +5,7 @@ use std::path::Path;
 
 use api::util;
 use api::{SectorConfig, SectorManager, SectorStore, StatusCode};
+use storage_proofs::io::fr32::write_padded;
 
 pub const REAL_SECTOR_SIZE: u64 = 128;
 pub const FAST_SECTOR_SIZE: u64 = 1024;
@@ -111,7 +112,9 @@ impl SectorManager for DiskManager {
             .and_then(|file| {
                 let mut buf = BufWriter::new(file);
 
-                buf.write(data).map_err(|_| 41).map(|n| n as u64)
+                write_padded(data, &mut buf)
+                    .map_err(|_| 41)
+                    .map(|n| n as u64)
             })
     }
 }
@@ -297,7 +300,7 @@ mod tests {
             *result
         };
 
-        let contents = b"hello, moto";
+        let contents = &[2u8; 500];
         let write_result_ptr = &mut 0u64;
 
         assert_eq!(0, unsafe {
@@ -317,8 +320,14 @@ mod tests {
         assert_eq!(contents.len(), *write_result_ptr as usize);
 
         // ensure the file we wrote to contains the expected bytes
-        assert_eq!(contents.len(), buf.len());
-        assert_eq!(contents[0..], buf[0..]);
+        assert_eq!(contents[0..31], buf[0..31]);
+        assert_eq!(0u8, buf[31]);
+
+        // read the file into memory again - this time after we truncate
+        let buf = read_all_bytes(access);
+
+        // ensure the file we wrote to contains the expected bytes
+        assert_eq!(503, buf.len());
 
         assert_eq!(0, unsafe { truncate_unsealed(storage, access, 1) });
 

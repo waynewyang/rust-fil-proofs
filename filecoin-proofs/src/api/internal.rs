@@ -1,6 +1,5 @@
 use std::fs::File;
-use std::io::Write;
-use std::io::{BufWriter, Read};
+use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
 use std::{thread, time};
 
@@ -16,6 +15,7 @@ use storage_proofs::drgraph::new_seed;
 use storage_proofs::error::Result;
 use storage_proofs::fr32::{bytes_into_fr, fr_into_bytes, Fr32Ary};
 use storage_proofs::hasher::pedersen::PedersenHash;
+use storage_proofs::io::fr32::write_unpadded;
 use storage_proofs::layered_drgporep::{self, simplify_tau};
 use storage_proofs::parameter_cache::{
     parameter_cache_path, read_cached_params, write_params_to_cache,
@@ -314,7 +314,16 @@ pub fn get_unsealed_range(
         ZigZagDrgPoRep::extract_all(&public_params(sector_bytes), &replica_id, &data)?
     };
 
-    let written = buf_writer.write(&unsealed[offset as usize..(offset + num_bytes) as usize])?;
+    // original data is padded with 2 bits for each 253 bits, rounded up to full bytes
+    // we remove the 2 bits, but not if the original data was less than the sector size.
+    let fr_count = (sector_bytes * 8) / 256;
+    let original_len = (fr_count * 253) / 8;
+
+    let written = write_unpadded(
+        &unsealed[offset as usize..(offset + num_bytes) as usize],
+        &mut buf_writer,
+        original_len,
+    )?;
 
     Ok(written as u64)
 }

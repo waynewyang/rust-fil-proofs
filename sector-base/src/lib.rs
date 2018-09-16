@@ -10,6 +10,7 @@
 
 extern crate libc;
 extern crate rand;
+extern crate storage_proofs;
 
 #[cfg(test)]
 extern crate tempfile;
