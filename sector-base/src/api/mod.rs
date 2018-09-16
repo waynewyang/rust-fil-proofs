@@ -57,7 +57,6 @@ pub unsafe extern "C" fn destroy_storage(ss_ptr: *mut Box<SectorStore>) -> Statu
 ///
 /// * `ss_ptr`     - pointer to a boxed SectorStore
 /// * `result_ptr` - pointer to location where provisioned SectorAccess will be written
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn new_sealed_sector_access(
     ss_ptr: *mut Box<SectorStore>,
@@ -83,7 +82,6 @@ pub unsafe extern "C" fn new_sealed_sector_access(
 ///
 /// * `ss_ptr`     - pointer to a boxed SectorStore
 /// * `result_ptr` - pointer to location where provisioned SectorAccess will be written
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn new_staging_sector_access(
     ss_ptr: *mut Box<SectorStore>,
@@ -114,7 +112,6 @@ pub unsafe extern "C" fn new_staging_sector_access(
 /// * `data_len`   - number of items in the data_ptr array
 /// * `result_ptr` - pointer to a u64, mutated by write_unsealed in order to communicate the number
 ///                  of bytes that were written to the unsealed sector
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn write_unsealed(
     ss_ptr: *mut Box<SectorStore>,
@@ -148,7 +145,6 @@ pub unsafe extern "C" fn write_unsealed(
 /// * `ss_ptr` - pointer to a boxed SectorStore
 /// * `access` - an unsealed sector access
 /// * `size`   - desired number of bytes to truncate to
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn truncate_unsealed(
     ss_ptr: *mut Box<SectorStore>,
@@ -177,7 +173,6 @@ pub unsafe extern "C" fn truncate_unsealed(
 /// * `access`     - an unsealed sector access
 /// * `result_ptr` - pointer to a u64, mutated by num_unsealed_bytes to communicate back to callers
 ///                  the number of bytes in the unsealed sector
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn num_unsealed_bytes(
     ss_ptr: *mut Box<SectorStore>,
@@ -207,7 +202,6 @@ pub unsafe extern "C" fn num_unsealed_bytes(
 /// * `ss_ptr`     - pointer to a boxed SectorStore
 /// * `result_ptr` - pointer to a u64, mutated by max_unsealed_bytes_per_sector to communicate back to
 ///                  callers the number of bytes an unsealed sector
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn max_unsealed_bytes_per_sector(
     ss_ptr: *mut Box<SectorStore>,

@@ -20,7 +20,6 @@ pub const SLOW_DELAY_SECONDS: u32 = 4 * 60 * 60;
 ///
 /// * `staging_dir_path` - path to the staging directory
 /// * `sealed_dir_path`  - path to the sealed directory
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn init_new_proof_test_sector_store<'a>(
     staging_dir_path: *const libc::c_char,
@@ -42,7 +41,6 @@ pub unsafe extern "C" fn init_new_proof_test_sector_store<'a>(
 ///
 /// * `staging_dir_path` - path to the staging directory
 /// * `sealed_dir_path`  - path to the sealed directory
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn init_new_test_sector_store(
     staging_dir_path: *const libc::c_char,
@@ -64,7 +62,6 @@ pub unsafe extern "C" fn init_new_test_sector_store(
 ///
 /// * `staging_dir_path` - path to the staging directory
 /// * `sealed_dir_path`  - path to the sealed directory
-/// ```
 #[no_mangle]
 pub unsafe extern "C" fn init_new_sector_store(
     staging_dir_path: *const libc::c_char,
