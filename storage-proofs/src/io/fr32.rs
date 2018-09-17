@@ -35,16 +35,49 @@ where
     Ok(written)
 }
 
+// offset and num_bytes are based on the unpadded data, so
+// if [0, 1, ..., 255] was the original unpadded data, offset 3 and len 4 would return
+// [2, 3, 4, 5].
 pub fn write_unpadded<W: ?Sized>(
     source: &[u8],
     target: &mut W,
-    original_len: usize,
+    offset: usize,
+    len: usize,
 ) -> io::Result<u64>
 where
     W: Write,
 {
-    let mut written = 0;
-    let padded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
+    // assuming 32byte aligned (4 u64 = 1Fr)
+
+    let offset_bits = offset * 8;
+    let len_bits = len * 8;
+    let fr_count_offset = {
+        let tmp = (offset_bits as f32 / FR_UNPADDED_BITS as f32).ceil() as usize;
+        if tmp > 0 {
+            tmp - 1
+        } else {
+            tmp
+        }
+    };
+    let fr_count_len = (len_bits as f32 / FR_UNPADDED_BITS as f32).ceil() as usize + 1;
+
+    let start_padded = (fr_count_offset * FR_PADDED_BITS as usize) / 8;
+    let end_padded = ::std::cmp::min(
+        source.len(),
+        start_padded + (fr_count_len * FR_PADDED_BITS as usize) / 8,
+    );
+
+    println!(
+        "(0..{}..{}..{}) {} {} {} {}",
+        offset,
+        offset + len,
+        source.len(),
+        fr_count_offset,
+        fr_count_len,
+        start_padded,
+        end_padded
+    );
+    let padded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(&source[start_padded..end_padded])
         .into_iter()
         .chunks(FR_PADDED_BITS);
 
@@ -52,19 +85,22 @@ where
         .into_iter()
         .flat_map(|chunk| chunk.take(FR_UNPADDED_BITS))
         .chunks(8);
-
     let slices = unpadded_chunks
         .into_iter()
+        .skip(offset - start_padded)
+        .take(len)
         .map(|chunk| {
             let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
             bits.into_boxed_slice()
-        }).take(original_len);
+        });
 
+    let mut written = 0;
     for slice in slices {
+        println!("slice: {:?}", &slice);
         target.write_all(&slice)?;
         written += slice.len() as u64;
     }
-
+    assert_eq!(written as usize, len);
     Ok(written)
 }
 
@@ -290,6 +326,7 @@ impl<R: Read + Debug> Read for Fr32Reader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{Rng, SeedableRng, XorShiftRng};
     use std::io;
 
     fn write_test(bytes: &[u8], extra_bytes: &[u8]) -> (usize, Vec<u8>) {
@@ -405,8 +442,38 @@ mod tests {
         write_padded(&data, &mut padded).unwrap();
 
         let mut unpadded = Vec::new();
-        write_unpadded(&padded, &mut unpadded, len).unwrap();
+        write_unpadded(&padded, &mut unpadded, 0, len).unwrap();
 
         assert_eq!(data, unpadded);
+    }
+
+    #[test]
+    fn test_read_write_padded_offset() {
+        let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+
+        let len = 1024;
+        let data: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
+        let mut padded = Vec::new();
+        write_padded(&data, &mut padded).unwrap();
+
+        {
+            let mut unpadded = Vec::new();
+            write_unpadded(&padded, &mut unpadded, 0, 44).unwrap();
+            let expected = &data[0..44];
+
+            assert_eq!(expected.len(), unpadded.len());
+            assert_eq!(expected, &unpadded[..]);
+        }
+
+        {
+            let mut unpadded = Vec::new();
+            write_unpadded(&padded, &mut unpadded, 44, 127).unwrap();
+            let expected = &data[44..44 + 127];
+
+            println!("data[0..44]: {:?}", &data[0..44]);
+            println!("data[44..44+127]: {:?}", &data[44..44 + 127]);
+            assert_eq!(expected.len(), unpadded.len());
+            assert_eq!(expected, &unpadded[..]);
+        }
     }
 }
