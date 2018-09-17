@@ -317,17 +317,17 @@ mod tests {
         let buf = read_all_bytes(access);
 
         // ensure that we reported the correct number of written bytes
-        assert_eq!(contents.len(), *write_result_ptr as usize);
+        assert_eq!(contents.len() + 12, *write_result_ptr as usize);
 
         // ensure the file we wrote to contains the expected bytes
-        assert_eq!(contents[0..31], buf[0..31]);
-        assert_eq!(0u8, buf[31]);
+        assert_eq!(contents[0..32], buf[0..32]);
+        assert_eq!(8u8, buf[32]);
 
         // read the file into memory again - this time after we truncate
         let buf = read_all_bytes(access);
 
         // ensure the file we wrote to contains the expected bytes
-        assert_eq!(503, buf.len());
+        assert_eq!(512, buf.len());
 
         assert_eq!(0, unsafe { truncate_unsealed(storage, access, 1) });
 
