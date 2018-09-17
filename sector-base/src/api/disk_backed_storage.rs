@@ -1,6 +1,6 @@
 use libc;
 use std::fs::{create_dir_all, metadata, File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 use std::path::Path;
 
 use api::util;
@@ -22,14 +22,14 @@ pub const SLOW_DELAY_SECONDS: u32 = 4 * 60 * 60;
 /// * `staging_dir_path` - path to the staging directory
 /// * `sealed_dir_path`  - path to the sealed directory
 #[no_mangle]
-pub unsafe extern "C" fn init_new_proof_test_sector_store<'a>(
+pub unsafe extern "C" fn init_new_proof_test_sector_store(
     staging_dir_path: *const libc::c_char,
     sealed_dir_path: *const libc::c_char,
 ) -> *mut Box<SectorStore> {
     let boxed = Box::new(new_sector_store(
-        ConfiguredStore::ProofTest,
-        String::from(util::c_str_to_rust_str(sealed_dir_path)),
-        String::from(util::c_str_to_rust_str(staging_dir_path)),
+        &ConfiguredStore::ProofTest,
+        util::c_str_to_rust_str(sealed_dir_path),
+        util::c_str_to_rust_str(staging_dir_path),
     ));
     util::raw_ptr(boxed)
 }
@@ -48,9 +48,9 @@ pub unsafe extern "C" fn init_new_test_sector_store(
     sealed_dir_path: *const libc::c_char,
 ) -> *mut Box<SectorStore> {
     let boxed = Box::new(new_sector_store(
-        ConfiguredStore::Test,
-        String::from(util::c_str_to_rust_str(sealed_dir_path)),
-        String::from(util::c_str_to_rust_str(staging_dir_path)),
+        &ConfiguredStore::Test,
+        util::c_str_to_rust_str(sealed_dir_path),
+        util::c_str_to_rust_str(staging_dir_path),
     ));
     util::raw_ptr(boxed)
 }
@@ -69,9 +69,9 @@ pub unsafe extern "C" fn init_new_sector_store(
     sealed_dir_path: *const libc::c_char,
 ) -> *mut Box<SectorStore> {
     let boxed = Box::new(new_sector_store(
-        ConfiguredStore::Live,
-        String::from(util::c_str_to_rust_str(sealed_dir_path)),
-        String::from(util::c_str_to_rust_str(staging_dir_path)),
+        &ConfiguredStore::Live,
+        util::c_str_to_rust_str(sealed_dir_path),
+        util::c_str_to_rust_str(staging_dir_path),
     ));
 
     util::raw_ptr(boxed)
@@ -154,11 +154,11 @@ pub struct ConcreteSectorStore {
 }
 
 impl SectorStore for ConcreteSectorStore {
-    fn config(&self) -> &Box<SectorConfig> {
-        &self.config
+    fn config(&self) -> &SectorConfig {
+        self.config.as_ref()
     }
-    fn manager(&self) -> &Box<SectorManager> {
-        &self.manager
+    fn manager(&self) -> &SectorManager {
+        self.manager.as_ref()
     }
 }
 
@@ -175,11 +175,11 @@ pub fn new_real_sector_store(sealed_path: String, staging_path: String) -> Concr
 }
 
 pub fn new_sector_store(
-    cs: ConfiguredStore,
+    cs: &ConfiguredStore,
     sealed_path: String,
     staging_path: String,
 ) -> ConcreteSectorStore {
-    match cs {
+    match *cs {
         ConfiguredStore::Live => new_slow_fake_sector_store(sealed_path, staging_path),
         ConfiguredStore::Test => new_fast_fake_sector_store(sealed_path, staging_path),
         ConfiguredStore::ProofTest => new_real_sector_store(sealed_path, staging_path),

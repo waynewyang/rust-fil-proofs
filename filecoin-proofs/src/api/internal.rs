@@ -72,7 +72,7 @@ fn setup_params(sector_bytes: usize) -> layered_drgporep::SetupParams {
         drg_porep_setup_params: drgporep::SetupParams {
             lambda: LAMBDA,
             drg: DrgParams {
-                nodes: nodes,
+                nodes,
                 degree: DEGREE,
                 expansion_degree: EXPANSION_DEGREE,
                 seed: new_seed(),
@@ -234,12 +234,12 @@ pub fn seal(
 }
 
 fn delay_seal(seconds: u32) {
-    let delay = time::Duration::from_secs(seconds as u64);
+    let delay = time::Duration::from_secs(u64::from(seconds));
     thread::sleep(delay);
 }
 
 fn delay_get_unsealed_range(base_seconds: u32) {
-    let delay = time::Duration::from_secs((base_seconds / 2) as u64);
+    let delay = time::Duration::from_secs(u64::from(base_seconds / 2));
     thread::sleep(delay);
 }
 
@@ -280,7 +280,8 @@ fn write_data(out_path: &PathBuf, data: &[u8]) -> Result<()> {
     // Write replicated data to out_path.
     let f_out = File::create(out_path)?;
     let mut buf_writer = BufWriter::new(f_out);
-    Ok(buf_writer.write_all(&data)?)
+    buf_writer.write_all(&data)?;
+    Ok(())
 }
 
 pub fn get_unsealed_range(

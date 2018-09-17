@@ -5,7 +5,6 @@ use std::io::{self, Read, Result, Write};
 use std::iter::FromIterator;
 
 use bitvec::{self, BitVec};
-use iter_read::IterRead;
 use itertools::Itertools;
 
 pub const FR_UNPADDED_BITS: usize = 254;
@@ -51,7 +50,7 @@ where
 
     let unpadded_chunks = padded_chunks
         .into_iter()
-        .flat_map(|chunk| chunk.into_iter().take(FR_UNPADDED_BITS))
+        .flat_map(|chunk| chunk.take(FR_UNPADDED_BITS))
         .chunks(8);
 
     let slices = unpadded_chunks
@@ -61,8 +60,8 @@ where
             bits.into_boxed_slice()
         }).take(original_len);
 
-    for slice in slices.into_iter() {
-        target.write(&slice)?;
+    for slice in slices {
+        target.write_all(&slice)?;
         written += slice.len() as u64;
     }
 
@@ -380,7 +379,7 @@ mod tests {
         source.extend(vec![9, 0xff]);
 
         let mut buf = Vec::new();
-        let write_count = write_padded(&source, &mut buf).unwrap();
+        write_padded(&source, &mut buf).unwrap();
 
         for i in 0..31 {
             assert_eq!(buf[i], i as u8 + 1);

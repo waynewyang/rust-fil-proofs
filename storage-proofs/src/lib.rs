@@ -1,6 +1,6 @@
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(clippy_all, clippy_perf, clippy_correctness)
+    deny(all, clippy_perf, clippy_correctness)
 )]
 #![cfg_attr(feature = "cargo-clippy", allow(unreadable_literal))]
 #![cfg_attr(
@@ -49,8 +49,6 @@ extern crate pbr;
 #[macro_use]
 extern crate log;
 extern crate colored;
-
-extern crate iter_read;
 
 #[macro_use]
 pub mod test_helper;

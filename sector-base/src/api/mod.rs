@@ -35,8 +35,8 @@ pub trait SectorManager {
 }
 
 pub trait SectorStore {
-    fn config(&self) -> &Box<SectorConfig>;
-    fn manager(&self) -> &Box<SectorManager>;
+    fn config(&self) -> &SectorConfig;
+    fn manager(&self) -> &SectorManager;
 }
 /// Destroys a boxed SectorStore by freeing its memory.
 ///
