@@ -1,108 +1,7 @@
 use fr32::Fr32Ary;
 use std::cmp;
-use std::fmt::Debug;
-use std::io::{self, Read, Result, Write};
-use std::iter::FromIterator;
-
-use bitvec::{self, BitVec};
-use itertools::Itertools;
-
-pub const FR_UNPADDED_BITS: usize = 254;
-pub const FR_PADDED_BITS: usize = 256;
-
-pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<u64>
-where
-    W: Write,
-{
-    let mut written: u64 = 0;
-    for chunk in BitVec::<bitvec::LittleEndian, u8>::from(source)
-        .into_iter()
-        .chunks(FR_UNPADDED_BITS)
-        .into_iter()
-    {
-        let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
-
-        // pad
-        while bits.len() < FR_PADDED_BITS {
-            bits.push(false);
-        }
-
-        let out = &bits.into_boxed_slice();
-
-        target.write_all(&out)?;
-        written += out.len() as u64;
-    }
-    Ok(written)
-}
-
-// offset and num_bytes are based on the unpadded data, so
-// if [0, 1, ..., 255] was the original unpadded data, offset 3 and len 4 would return
-// [2, 3, 4, 5].
-pub fn write_unpadded<W: ?Sized>(
-    source: &[u8],
-    target: &mut W,
-    offset: usize,
-    len: usize,
-) -> io::Result<u64>
-where
-    W: Write,
-{
-    // assuming 32byte aligned (4 u64 = 1Fr)
-
-    let offset_bits = offset * 8;
-    let len_bits = len * 8;
-    let fr_count_offset = {
-        let tmp = (offset_bits as f32 / FR_UNPADDED_BITS as f32).ceil() as usize;
-        if tmp > 0 {
-            tmp - 1
-        } else {
-            tmp
-        }
-    };
-    let fr_count_len = (len_bits as f32 / FR_UNPADDED_BITS as f32).ceil() as usize + 1;
-
-    let start_padded = (fr_count_offset * FR_PADDED_BITS as usize) / 8;
-    let end_padded = ::std::cmp::min(
-        source.len(),
-        start_padded + (fr_count_len * FR_PADDED_BITS as usize) / 8,
-    );
-
-    println!(
-        "(0..{}..{}..{}) {} {} {} {}",
-        offset,
-        offset + len,
-        source.len(),
-        fr_count_offset,
-        fr_count_len,
-        start_padded,
-        end_padded
-    );
-    let padded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(&source[start_padded..end_padded])
-        .into_iter()
-        .chunks(FR_PADDED_BITS);
-
-    let unpadded_chunks = padded_chunks
-        .into_iter()
-        .flat_map(|chunk| chunk.take(FR_UNPADDED_BITS))
-        .chunks(8);
-    let slices = unpadded_chunks
-        .into_iter()
-        .skip(offset - start_padded)
-        .take(len)
-        .map(|chunk| {
-            let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
-            bits.into_boxed_slice()
-        });
-
-    let mut written = 0;
-    for slice in slices {
-        println!("slice: {:?}", &slice);
-        target.write_all(&slice)?;
-        written += slice.len() as u64;
-    }
-    assert_eq!(written as usize, len);
-    Ok(written)
-}
+use std::fmt::{self, Debug};
+use std::io::{Read, Result, Write};
 
 pub struct Fr32Writer<W> {
     inner: W,
@@ -111,25 +10,119 @@ pub struct Fr32Writer<W> {
     bits_needed: usize,
 }
 
+//impl<W> Debug for Fr32Writer<W> {
+//    fn fmt(&self, f: &'_ mut fmt::Formatter<'_>) -> fmt::Result {
+//        unimplemented!();
+//    }
+//}
+
 pub struct Fr32Reader<R> {
     _inner: R,
 }
 
+pub const FR_INPUT_BYTE_LIMIT: usize = 254;
+
+/// Given in_bytes written to Fr32Writer, how many bytes are written to its inner writer?
+pub fn writer_bytes_out(in_bytes: u64) -> u64 {
+    expand_byte_pos(in_bytes)
+}
+
+fn div_rem(a: u64, b: u64) -> (u64, u64) {
+    let div = a / b;
+    let rem = a % b;
+    (div, rem)
+}
+
+fn transform_bit_pos(p: u64, from_size: u64, to_size: u64) -> u64 {
+    let (div, rem) = div_rem(p, from_size);
+    (div * to_size) + rem
+}
+
+fn expand_bit_pos(p: u64) -> u64 {
+    transform_bit_pos(p, 254, 256)
+}
+
+fn contract_bit_pos(p: u64) -> u64 {
+    transform_bit_pos(p, 256, 254)
+}
+
+fn transform_byte_pos(p: u64, from_bit_size: u64, to_bit_size: u64) -> u64 {
+    let bit_pos = p * 8;
+    let transformed_bit_pos = transform_bit_pos(bit_pos, from_bit_size, to_bit_size);
+    let transformed_byte_pos1 = (transformed_bit_pos as f64 / 8.);
+
+    (if from_bit_size < to_bit_size {
+        transformed_byte_pos1.ceil()
+    } else {
+        transformed_byte_pos1.floor()
+    }) as u64
+}
+
+fn transform_byte_posx(p: u64, from_bit_size: u64, to_bit_size: u64) -> u64 {
+    if from_bit_size == to_bit_size {
+        return p;
+    }
+    let bit_pos = p * 8;
+    let (div, rem) = div_rem(bit_pos, from_bit_size);
+    let transformed_bit_pos = (div * to_bit_size) + rem;
+    let transformed_full_bytes = transformed_bit_pos / 8;
+    let remainder_byte = if rem > 0 { ((rem + 7) / 8) } else { 0 };
+    println!(
+        "p: {}; from: {}; to: {}; div: {}; rem: {}; transformed_bit_pos: {};
+         transformed_full_bytes: {}; remainder_byte: {}",
+        p,
+        from_bit_size,
+        to_bit_size,
+        div,
+        rem,
+        transformed_bit_pos,
+        transformed_full_bytes,
+        remainder_byte
+    );
+    if from_bit_size < to_bit_size {
+        transformed_full_bytes + remainder_byte
+    } else {
+        println!("tfb: {}; rb: {}", transformed_full_bytes, remainder_byte);
+        transformed_full_bytes + remainder_byte
+    }
+}
+
+pub fn expand_byte_pos(p: u64) -> u64 {
+    transform_byte_pos(p, 254, 256)
+}
+
+fn contract_byte_pos(p: u64) -> u64 {
+    transform_byte_pos(p, 256, 254)
+}
+
+/// How many bytes must be written to Fr32Writer for out_bytes to be written to its inner writer?
+/// FIXME: Is this actually always true?
+pub fn writer_bytes_in(out_bytes: u64) -> u64 {
+    contract_byte_pos(out_bytes)
+}
+
 impl<W: Write> Write for Fr32Writer<W> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize> {
+        println!("--->writing {} bytes…", buf.len());
+        println!(
+            "Fr32Writer--> prefix_size: {}; prefix: {}; bits_needed: {}",
+            self.prefix_size, self.prefix, self.bits_needed
+        );
         let bytes_remaining = buf.len();
-        let mut source_bytes_written = 0;
+        let mut total_bytes_consumed = 0;
+        let mut bytes_written = 0;
 
-        while source_bytes_written < bytes_remaining {
+        while total_bytes_consumed < bytes_remaining {
             let (remainder, remainder_size, bytes_consumed, bytes_to_write, more) =
                 self.process_bytes(&buf);
-
-            source_bytes_written += bytes_consumed;
-
+            total_bytes_consumed += bytes_consumed;
+            println!(
+                "bytes_consumed: {}; total_bytes_consumed: {}",
+                bytes_consumed, total_bytes_consumed
+            );
             if more {
                 // We read a complete chunk and should continue.
-                self.ensure_write(&bytes_to_write)?;
-            //source_bytes_written += bytes_consumed;//bytes_to_write.len();
+                bytes_written += self.ensure_write(&bytes_to_write)?;
             } else {
                 // We read an incomplete chunk, so this is the last iteration.
                 // We must have consumed all the bytes in buf.
@@ -141,8 +134,7 @@ impl<W: Write> Write for Fr32Writer<W> {
                 assert!(real_length <= bytes_to_write.len());
 
                 let truncated = &bytes_to_write[0..real_length];
-                self.ensure_write(truncated)?;
-                //source_bytes_written += truncated.len();
+                bytes_written += self.ensure_write(truncated)?;
 
                 if self.prefix_size > 0 {
                     // Since this chunk was incomplete, what would have been the remainder was included as the last byte to write.
@@ -161,12 +153,7 @@ impl<W: Write> Write for Fr32Writer<W> {
             let residual_bytes = &buf[(buf.len() - residual_bytes_size)..buf.len()];
             buf = residual_bytes;
         }
-        // TODO: proper accounting
-        if source_bytes_written > buf.len() {
-            Ok(bytes_remaining)
-        } else {
-            Ok(source_bytes_written)
-        }
+        Ok(bytes_written)
     }
 
     fn flush(&mut self) -> Result<()> {
@@ -180,7 +167,7 @@ impl<W: Write> Fr32Writer<W> {
             inner,
             prefix: 0,
             prefix_size: 0,
-            bits_needed: FR_UNPADDED_BITS,
+            bits_needed: FR_INPUT_BYTE_LIMIT,
         }
     }
     // Tries to process bytes.
@@ -198,6 +185,13 @@ impl<W: Write> Fr32Writer<W> {
 
         // Consume as many bytes as needed, unless there aren't enough.
         let bytes_to_consume = cmp::min(full_bytes_needed, bytes.len());
+        println!(
+            "bits_needed: {}; bytes.len(): {}; bytes_to_consume: {}; remainder_size: {}",
+            bits_needed,
+            bytes.len(),
+            bytes_to_consume,
+            remainder_size,
+        );
         let mut final_byte = 0;
         let mut bytes_consumed = bytes_to_consume;
         let mut incomplete = false;
@@ -209,7 +203,7 @@ impl<W: Write> Fr32Writer<W> {
                     incomplete = true;
                 } else {
                     // This iteration's remainder will be included in next iteration's output.
-                    self.bits_needed = FR_UNPADDED_BITS - remainder_size;
+                    self.bits_needed = FR_INPUT_BYTE_LIMIT - remainder_size;
 
                     // The last byte we consume is special.
                     final_byte = bytes[bytes_to_consume];
@@ -223,7 +217,13 @@ impl<W: Write> Fr32Writer<W> {
             incomplete = true;
         }
 
+        println!(
+            "bytes_consumed: {}; final_byte: {}",
+            bytes_consumed, final_byte
+        );
+
         if incomplete {
+            println!("incomplete!");
             // Too few bytes were sent.
 
             // We will need the unsent bits next iteration.
@@ -234,6 +234,8 @@ impl<W: Write> Fr32Writer<W> {
 
             // The current prefix and remainder have the same size; no padding is added in this iteration.
             remainder_size = self.prefix_size;
+        } else {
+            println!("COMPLETE!!!!!");
         }
 
         // Grab all the full bytes (excluding suffix) we intend to consume.
@@ -242,6 +244,7 @@ impl<W: Write> Fr32Writer<W> {
         // The suffix is the last part of this iteration's output.
         // The remainder will be the first part of next iteration's output.
         let (suffix, remainder) = split_byte(final_byte, suffix_size);
+        println!("remainder: {}", remainder);
         let out_bytes = assemble_bytes(self.prefix, self.prefix_size, full_bytes, suffix);
         (
             remainder,
@@ -253,6 +256,7 @@ impl<W: Write> Fr32Writer<W> {
     }
 
     pub fn finish(&mut self) -> Result<usize> {
+        println!("finishing");
         if self.prefix_size > 0 {
             assert!(self.prefix_size <= 8);
             let b = self.prefix;
@@ -267,6 +271,7 @@ impl<W: Write> Fr32Writer<W> {
     }
 
     fn ensure_write(&mut self, mut buffer: &[u8]) -> Result<usize> {
+        println!("writing {:?}", buffer);
         let mut bytes_written = 0;
 
         while !buffer.is_empty() {
@@ -275,6 +280,7 @@ impl<W: Write> Fr32Writer<W> {
             buffer = &buffer[n..buffer.len()];
             bytes_written += n;
         }
+        println!("wrote: {}", bytes_written);
         Ok(bytes_written)
     }
 }
@@ -349,8 +355,6 @@ impl<R: Read + Debug> Read for Fr32Reader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{Rng, SeedableRng, XorShiftRng};
-    use std::io;
 
     #[test]
     fn test_left_shift_safe() {
@@ -369,7 +373,7 @@ mod tests {
             let mut count = writer.write(&bytes).unwrap();
             // This tests to make sure state is correctly maintained so we can restart writing mid-32-byte chunk.
             count += writer.write(extra_bytes).unwrap();
-            writer.finish().unwrap();
+            count += writer.finish().unwrap();
             count
         };
 
@@ -386,7 +390,7 @@ mod tests {
         let extra = vec![9, 0xff];
 
         let (write_count, buf) = write_test(&source, &extra);
-        assert_eq!(write_count, 68);
+        assert_eq!(write_count, 69);
         assert_eq!(buf.len(), 69);
 
         for i in 0..31 {
@@ -405,108 +409,22 @@ mod tests {
         assert_eq!(buf[68], 0x0f); // And here is the second.
     }
 
-    // Read is still unimplemented.
-    // #[test]
-    fn test_read() {
-        let data = vec![2u8; 1000];
-
-        let mut padded_data: Vec<u8> = vec![];
-        {
-            let mut pad_writer = Fr32Writer::new(&mut padded_data);
-            pad_writer.write(&data).unwrap();
-        }
-        assert_ne!(data, &padded_data[..]);
-
-        let mut unpadded_data: Vec<u8> = vec![];
-        let mut unpad_reader = Fr32Reader::new(&padded_data[..]);
-
-        let written = io::copy(&mut unpad_reader, &mut unpadded_data).unwrap();
-
-        assert_eq!(data, unpadded_data);
-    }
-
     #[test]
-    fn test_write_padded() {
-        let data = vec![255u8; 32];
-        let mut padded = Vec::new();
-        let written = write_padded(&data, &mut padded).unwrap();
-        assert_eq!(written, 64);
-        assert_eq!(padded.len(), 64);
-        assert_eq!(&padded[0..31], &data[0..31]);
-        assert_eq!(padded[31], 0b0011_1111);
-        assert_eq!(padded[32], 0b0000_0011);
-        assert_eq!(&padded[33..], vec![0u8; 31].as_slice());
-    }
-
-    #[test]
-    fn test_write_padded_alt() {
-        let mut source = vec![
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 0xff, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-            16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0xff, 9, 9,
-        ];
-        // FIXME: This doesn't exercise the ability to write a second time, which is the point of the extra_bytes in write_test.
-        source.extend(vec![9, 0xff]);
-
-        let mut buf = Vec::new();
-        write_padded(&source, &mut buf).unwrap();
-
-        for i in 0..31 {
-            assert_eq!(buf[i], i as u8 + 1);
+    fn test_in_out_size() {
+        for i in 0..1000 {
+            let out = writer_bytes_out(i);
+            let back_in = writer_bytes_in(out);
+            println!("i: {}; out: {}; back_in: {}", i, out, back_in);
+            assert_eq!(i, back_in);
         }
-        assert_eq!(buf[31], 63); // Six least significant bits of 0xff
-        assert_eq!(buf[32], (1 << 2) | 0b11); // 7
-        for i in 33..63 {
-            assert_eq!(buf[i], (i as u8 - 31) << 2);
-        }
-        assert_eq!(buf[63], (0x0f << 2)); // 4-bits of ones, half of 0xff, shifted by two, followed by two bits of 0-padding.
-        assert_eq!(buf[64], 0x0f | 9 << 4); // The last half of 0xff, 'followed' by 9.
-        assert_eq!(buf[65], 9 << 4); // A shifted 9.
-        assert_eq!(buf[66], 9 << 4); // Another.
-        assert_eq!(buf[67], 0xf0); // The final 0xff is split into two bytes. Here is the first half.
-        assert_eq!(buf[68], 0x0f); // And here is the second.
     }
-
     #[test]
-    fn test_read_write_padded() {
-        let len = 1024;
-        let data = vec![255u8; len];
-        let mut padded = Vec::new();
-        write_padded(&data, &mut padded).unwrap();
-
-        let mut unpadded = Vec::new();
-        write_unpadded(&padded, &mut unpadded, 0, len).unwrap();
-
-        assert_eq!(data, unpadded);
-    }
-
-    #[test]
-    fn test_read_write_padded_offset() {
-        let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
-
-        let len = 1024;
-        let data: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
-        let mut padded = Vec::new();
-        write_padded(&data, &mut padded).unwrap();
-
-        {
-            let mut unpadded = Vec::new();
-            write_unpadded(&padded, &mut unpadded, 0, 44).unwrap();
-            let expected = &data[0..44];
-
-            assert_eq!(expected.len(), unpadded.len());
-            assert_eq!(expected, &unpadded[..]);
-        }
-
-        {
-            let mut unpadded = Vec::new();
-            write_unpadded(&padded, &mut unpadded, 44, 127).unwrap();
-            let expected = &data[44..44 + 127];
-
-            println!("data[0..44]: {:?}", &data[0..44]);
-            println!("data[44..44+127]: {:?}", &data[44..44 + 127]);
-            assert_eq!(expected.len(), unpadded.len());
-            assert_eq!(expected, &unpadded[..]);
+    fn test_expand_contract_byte_pos() {
+        for p in 0..545 {
+            let expanded = expand_byte_pos(p);
+            let back = contract_byte_pos(expanded);
+            println!("p: {}; expanded: {}; back: {}", p, expanded, back);
+            //assert_eq!(p, back);
         }
     }
 }
