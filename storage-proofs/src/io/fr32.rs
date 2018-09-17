@@ -118,15 +118,18 @@ pub struct Fr32Reader<R> {
 impl<W: Write> Write for Fr32Writer<W> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize> {
         let bytes_remaining = buf.len();
-        let mut bytes_written = 0;
+        let mut source_bytes_written = 0;
 
-        while bytes_written < bytes_remaining {
+        while source_bytes_written < bytes_remaining {
             let (remainder, remainder_size, bytes_consumed, bytes_to_write, more) =
                 self.process_bytes(&buf);
+
+            source_bytes_written += bytes_consumed;
+
             if more {
                 // We read a complete chunk and should continue.
                 self.ensure_write(&bytes_to_write)?;
-                bytes_written += bytes_to_write.len();
+            //source_bytes_written += bytes_consumed;//bytes_to_write.len();
             } else {
                 // We read an incomplete chunk, so this is the last iteration.
                 // We must have consumed all the bytes in buf.
@@ -139,7 +142,7 @@ impl<W: Write> Write for Fr32Writer<W> {
 
                 let truncated = &bytes_to_write[0..real_length];
                 self.ensure_write(truncated)?;
-                bytes_written += truncated.len();
+                //source_bytes_written += truncated.len();
 
                 if self.prefix_size > 0 {
                     // Since this chunk was incomplete, what would have been the remainder was included as the last byte to write.
@@ -159,10 +162,10 @@ impl<W: Write> Write for Fr32Writer<W> {
             buf = residual_bytes;
         }
         // TODO: proper accounting
-        if bytes_written > buf.len() {
+        if source_bytes_written > buf.len() {
             Ok(bytes_remaining)
         } else {
-            Ok(bytes_written)
+            Ok(source_bytes_written)
         }
     }
 
@@ -337,7 +340,7 @@ mod tests {
             let mut count = writer.write(&bytes).unwrap();
             // This tests to make sure state is correctly maintained so we can restart writing mid-32-byte chunk.
             count += writer.write(extra_bytes).unwrap();
-            count += writer.finish().unwrap();
+            writer.finish().unwrap();
             count
         };
 
@@ -354,7 +357,7 @@ mod tests {
         let extra = vec![9, 0xff];
 
         let (write_count, buf) = write_test(&source, &extra);
-        assert_eq!(write_count, 69);
+        assert_eq!(write_count, 68);
         assert_eq!(buf.len(), 69);
 
         for i in 0..31 {
@@ -413,6 +416,7 @@ mod tests {
             25, 26, 27, 28, 29, 30, 31, 0xff, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
             16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0xff, 9, 9,
         ];
+        // FIXME: This doesn't exercise the ability to write a second time, which is the point of the extra_bytes in write_test.
         source.extend(vec![9, 0xff]);
 
         let mut buf = Vec::new();
