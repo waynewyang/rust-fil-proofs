@@ -8,33 +8,32 @@ use bitvec::{self, BitVec};
 use iter_read::IterRead;
 use itertools::Itertools;
 
+pub const FR_INPUT_BYTE_LIMIT: usize = 254;
+pub const FR_PADDED_BITS: usize = 256;
+
 pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<u64>
 where
     W: Write,
 {
-    let chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
+    let mut written: u64 = 0;
+    for chunk in BitVec::<bitvec::LittleEndian, u8>::from(source)
         .into_iter()
-        .chunks(FR_INPUT_BYTE_LIMIT);
-
-    let padded = chunks.into_iter().flat_map(|chunk| {
+        .chunks(FR_INPUT_BYTE_LIMIT)
+        .into_iter()
+    {
         let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
-        println!("bits {}", bits.len());
-
-        while bits.len() < 256 {
-            bits.push(false);
-        }
 
         // pad
-        while bits.len() < 256 {
+        while bits.len() < FR_PADDED_BITS {
             bits.push(false);
         }
 
-        let out = bits.into_boxed_slice().to_vec();
-        println!("out: {:?}", out);
-        out
-    });
-    let mut reader = IterRead::new(padded);
-    io::copy(&mut reader, target)
+        let out = &bits.into_boxed_slice();
+
+        target.write_all(&out)?;
+        written += out.len() as u64;
+    }
+    Ok(written)
 }
 
 pub fn write_unpadded<W: ?Sized>(
@@ -45,23 +44,29 @@ pub fn write_unpadded<W: ?Sized>(
 where
     W: Write,
 {
-    let chunks1 = BitVec::<bitvec::LittleEndian, u8>::from(source)
+    let mut written = 0;
+    let padded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
         .into_iter()
-        .chunks(256);
-    let chunks2 = chunks1
+        .chunks(FR_PADDED_BITS);
+
+    let unpadded_chunks = padded_chunks
         .into_iter()
         .flat_map(|chunk| chunk.into_iter().take(FR_INPUT_BYTE_LIMIT))
         .chunks(8);
 
-    let unpadded = chunks2
+    let slices = unpadded_chunks
         .into_iter()
         .map(|chunk| {
             let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
-            bits.into_boxed_slice().to_vec()[0]
+            bits.into_boxed_slice()
         }).take(original_len);
 
-    let mut reader = IterRead::new(unpadded);
-    io::copy(&mut reader, target)
+    for slice in slices.into_iter() {
+        target.write(&slice)?;
+        written += slice.len() as u64;
+    }
+
+    Ok(written)
 }
 
 pub struct Fr32Writer<W> {
@@ -74,8 +79,6 @@ pub struct Fr32Writer<W> {
 pub struct Fr32Reader<R> {
     _inner: R,
 }
-
-pub const FR_INPUT_BYTE_LIMIT: usize = 254;
 
 impl<W: Write> Write for Fr32Writer<W> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize> {
