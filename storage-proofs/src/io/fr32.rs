@@ -2,6 +2,7 @@ use fr32::Fr32Ary;
 use std::cmp;
 use std::fmt::Debug;
 use std::io::{self, Read, Result, Write};
+use std::iter::FromIterator;
 
 use bitvec::{self, BitVec};
 use iter_read::IterRead;
@@ -16,15 +17,18 @@ where
         .chunks(FR_INPUT_BYTE_LIMIT);
 
     let padded = chunks.into_iter().flat_map(|chunk| {
-        let mut raw_bits = chunk.into_iter().collect::<Vec<bool>>();
-        println!("bits {}", raw_bits.len());
+        let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
+        println!("bits {}", bits.len());
 
-        // pad
-        while raw_bits.len() < 256 {
-            raw_bits.push(false);
+        while bits.len() < 256 {
+            bits.push(false);
         }
 
-        let bits = BitVec::<bitvec::LittleEndian, u8>::from(&raw_bits[..]);
+        // pad
+        while bits.len() < 256 {
+            bits.push(false);
+        }
+
         let out = bits.into_boxed_slice().to_vec();
         println!("out: {:?}", out);
         out
@@ -52,8 +56,7 @@ where
     let unpadded = chunks2
         .into_iter()
         .map(|chunk| {
-            let raw_bits = chunk.into_iter().collect::<Vec<bool>>();
-            let bits = BitVec::<bitvec::LittleEndian, u8>::from(&raw_bits[..]);
+            let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
             bits.into_boxed_slice().to_vec()[0]
         }).take(original_len);
 
