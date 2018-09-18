@@ -151,17 +151,25 @@ where
         .into_iter()
         .chunks(padding_map.data_chunk_bits);
 
+    let mut bits_out = BitVec::<bitvec::LittleEndian, u8>::new();
+
     for chunk in unpadded_chunks.into_iter() {
         let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
 
         // pad
-        while bits.len() < padding_map.padded_chunk_bits {
+        while (bits.len() >= padding_map.data_chunk_bits)
+            && (bits.len() < padding_map.padded_chunk_bits)
+        {
             bits.push(false);
         }
-        let out = &bits.into_boxed_slice();
 
-        target.write_all(&out)?;
+        bits_out.extend(bits);
     }
+
+    let out = &bits_out.into_boxed_slice();
+
+    target.write_all(&out)?;
+
     // Always return the expected number of bytes, since this function will fail if write_all does.
     Ok(source.len())
 }
@@ -195,6 +203,7 @@ where
     let mut offset = padding_map.padded_bytes_bits_from_bytes(offset_bytes);
 
     let mut bits_out = BitVec::<bitvec::LittleEndian, u8>::new();
+
     while bits_remaining > 0 {
         let start = offset.bytes;
         let bits_to_skip = offset.bits;
@@ -205,7 +214,8 @@ where
         let current_fr_bits_end = next_boundary.total_bits() - padding_map.padding_bits();
         let bits_to_next_boundary = current_fr_bits_end - offset_total_bits;
 
-        let raw_bits = BitVec::<bitvec::LittleEndian, u8>::from(&source[start..end]);
+        let raw_bits =
+            BitVec::<bitvec::LittleEndian, u8>::from(&source[start..min(end, source.len())]);
         let skipped = raw_bits.into_iter().skip(bits_to_skip);
 
         //let restricted = skipped.take(padding_map.data_chunk_bits);
@@ -256,15 +266,33 @@ mod tests {
 
     #[test]
     fn test_write_padded() {
-        let data = vec![255u8; 32];
+        let data = vec![255u8; 151];
         let mut padded = Vec::new();
         let written = write_padded(&data, &mut padded).unwrap();
-        assert_eq!(written, 32);
-        assert_eq!(padded.len(), 64);
+        assert_eq!(written, 151);
+        assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(151));
         assert_eq!(&padded[0..31], &data[0..31]);
         assert_eq!(padded[31], 0b0011_1111);
-        assert_eq!(padded[32], 0b0000_0011);
-        assert_eq!(&padded[33..], vec![0u8; 31].as_slice());
+        assert_eq!(padded[32], 0b1111_1111);
+        assert_eq!(&padded[33..63], vec![255u8; 30].as_slice());
+        assert_eq!(padded[63], 0b0011_1111);
+    }
+
+    // #[test]
+    // FIXME: Make resumable writes work.
+    fn test_write_padded_multiple() {
+        let data = vec![255u8; 151];
+        let mut padded = Vec::new();
+        let mut written = write_padded(&data[0..75], &mut padded).unwrap();
+        written += write_padded(&data[75..], &mut padded).unwrap();
+
+        assert_eq!(written, 151);
+        assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(151));
+        assert_eq!(&padded[0..31], &data[0..31]);
+        assert_eq!(padded[31], 0b0011_1111);
+        assert_eq!(padded[32], 0b1111_1111);
+        assert_eq!(&padded[33..63], vec![255u8; 30].as_slice());
+        assert_eq!(padded[63], 0b0011_1111);
     }
 
     #[test]

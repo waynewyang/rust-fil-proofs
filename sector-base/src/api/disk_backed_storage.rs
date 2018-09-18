@@ -267,6 +267,7 @@ mod tests {
     use api::disk_backed_storage::init_new_proof_test_sector_store;
     use api::util;
     use api::{new_staging_sector_access, num_unsealed_bytes, truncate_unsealed, write_unsealed};
+    use storage_proofs::io::fr32::FR32_PADDING_MAP;
 
     fn create_storage() -> *mut Box<SectorStore> {
         let staging_path = tempfile::tempdir().unwrap().path().to_owned();
@@ -315,9 +316,10 @@ mod tests {
 
         // buffer the file's bytes into memory after writing bytes
         let buf = read_all_bytes(access);
+        let output_bytes_written = buf.len();
 
         // ensure that we reported the correct number of written bytes
-        assert_eq!(contents.len() + 12, *write_result_ptr as usize);
+        assert_eq!(contents.len(), *write_result_ptr as usize);
 
         // ensure the file we wrote to contains the expected bytes
         assert_eq!(contents[0..32], buf[0..32]);
@@ -327,7 +329,12 @@ mod tests {
         let buf = read_all_bytes(access);
 
         // ensure the file we wrote to contains the expected bytes
-        assert_eq!(512, buf.len());
+        assert_eq!(504, buf.len());
+        // also ensure this is the amount we calculate
+        assert_eq!(
+            FR32_PADDING_MAP.expand_bytes(contents.len()),
+            output_bytes_written
+        );
 
         assert_eq!(0, unsafe { truncate_unsealed(storage, access, 1) });
 

@@ -110,8 +110,10 @@ pub unsafe extern "C" fn new_staging_sector_access(
 /// * `access`     - an unsealed sector access
 /// * `data_ptr`   - pointer to data_len-length array of bytes to write
 /// * `data_len`   - number of items in the data_ptr array
-/// * `result_ptr` - pointer to a u64, mutated by write_unsealed in order to communicate the number
-///                  of bytes that were written to the unsealed sector
+/// * `result_ptr` - pointer to a u64, mutated by `write_unsealed` in order to communicate the number
+///                  of bytes that were written to the unsealed sector. NOTE: the number of bytes
+///                  written refers to the input data, and therefore will never be greater than
+///                  the input length – even though the size of the data written to `access` may (will) be.
 #[no_mangle]
 pub unsafe extern "C" fn write_unsealed(
     ss_ptr: *mut Box<SectorStore>,
@@ -127,8 +129,8 @@ pub unsafe extern "C" fn write_unsealed(
         .manager()
         .write_unsealed(util::c_str_to_rust_str(access), data)
     {
-        Ok(num_bytes_written) => {
-            result_ptr.write(num_bytes_written);
+        Ok(num_data_bytes_written) => {
+            result_ptr.write(num_data_bytes_written);
 
             0
         }
