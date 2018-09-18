@@ -11,14 +11,14 @@ pub const FR_PADDED_BITS: usize = 256;
 #[derive(Debug)]
 
 // Invariant: it is an error for bit_part to be > 7.
-pub struct BytesBits {
+pub struct BitByte {
     bytes: usize,
     bits: usize,
 }
 
-impl BytesBits {
-    pub fn from_bits(bits: usize) -> BytesBits {
-        BytesBits {
+impl BitByte {
+    pub fn from_bits(bits: usize) -> BitByte {
+        BitByte {
             bytes: bits / 8,
             bits: bits % 8,
         }
@@ -99,20 +99,20 @@ impl PaddingMap {
         transform_byte_pos(bytes, self.padded_chunk_bits, self.data_chunk_bits)
     }
 
-    pub fn padded_bytes_bits_from_bits(&self, bits: usize) -> BytesBits {
+    pub fn padded_bit_bytes_from_bits(&self, bits: usize) -> BitByte {
         let expanded = self.expand_bits(bits);
-        BytesBits::from_bits(expanded)
+        BitByte::from_bits(expanded)
     }
 
-    pub fn padded_bytes_bits_from_bytes(&self, bytes: usize) -> BytesBits {
-        self.padded_bytes_bits_from_bits(bytes * 8)
+    pub fn padded_bit_bytes_from_bytes(&self, bytes: usize) -> BitByte {
+        self.padded_bit_bytes_from_bits(bytes * 8)
     }
 
     pub fn padded_bytes_are_aligned(&self, bytes: usize) -> bool {
-        self.padded_bytes_bits_from_bytes(bytes).is_byte_aligned()
+        self.padded_bit_bytes_from_bytes(bytes).is_byte_aligned()
     }
 
-    pub fn next_fr_end(&self, current: &BytesBits) -> BytesBits {
+    pub fn next_fr_end(&self, current: &BitByte) -> BitByte {
         let current_bits = current.total_bits();
 
         let (previous, remainder) = div_rem(current_bits, self.padded_chunk_bits);
@@ -123,7 +123,7 @@ impl PaddingMap {
             previous + self.padded_chunk_bits
         };
 
-        BytesBits::from_bits(next_bit_boundary)
+        BitByte::from_bits(next_bit_boundary)
     }
 }
 
@@ -200,7 +200,7 @@ where
     W: Write,
 {
     let mut bits_remaining = padding_map.expand_bits(len * 8);
-    let mut offset = padding_map.padded_bytes_bits_from_bytes(offset_bytes);
+    let mut offset = padding_map.padded_bit_bytes_from_bytes(offset_bytes);
 
     let mut bits_out = BitVec::<bitvec::LittleEndian, u8>::new();
 
@@ -218,7 +218,6 @@ where
             BitVec::<bitvec::LittleEndian, u8>::from(&source[start..min(end, source.len())]);
         let skipped = raw_bits.into_iter().skip(bits_to_skip);
 
-        //let restricted = skipped.take(padding_map.data_chunk_bits);
         let restricted = skipped.take(bits_to_next_boundary);
 
         let available_bits = ((end - start) * 8) - bits_to_skip;
@@ -230,7 +229,7 @@ where
 
         bits_remaining -= bits_to_take;
 
-        offset = BytesBits {
+        offset = BitByte {
             bytes: end,
             bits: 0,
         };
@@ -257,7 +256,7 @@ mod tests {
         let mut bits = 0;
         for i in 0..10 {
             for j in 0..8 {
-                let position = BytesBits { bytes: i, bits: j };
+                let position = BitByte { bytes: i, bits: j };
                 assert_eq!(position.total_bits(), bits);
                 bits += 1;
             }
@@ -278,8 +277,7 @@ mod tests {
         assert_eq!(padded[63], 0b0011_1111);
     }
 
-    // #[test]
-    // FIXME: Make resumable writes work.
+    #[test]
     fn test_write_padded_multiple() {
         let data = vec![255u8; 151];
         let mut padded = Vec::new();
