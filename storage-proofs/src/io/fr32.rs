@@ -112,7 +112,7 @@ impl PaddingMap {
         self.padded_bytes_bits_from_bytes(bytes).is_byte_aligned()
     }
 
-    pub fn next_fr_end(&self, current: BytesBits) -> BytesBits {
+    pub fn next_fr_end(&self, current: &BytesBits) -> BytesBits {
         let current_bits = current.total_bits();
 
         let (previous, remainder) = div_rem(current_bits, self.padded_chunk_bits);
@@ -136,11 +136,11 @@ pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<usiz
 where
     W: Write,
 {
-    write_padded_aux(FR32_PADDING_MAP, source, target)
+    write_padded_aux(&FR32_PADDING_MAP, source, target)
 }
 
 pub fn write_padded_aux<W: ?Sized>(
-    padding_map: PaddingMap,
+    padding_map: &PaddingMap,
     source: &[u8],
     target: &mut W,
 ) -> io::Result<usize>
@@ -186,11 +186,11 @@ pub fn write_unpadded<W: ?Sized>(
 where
     W: Write,
 {
-    write_unpadded_aux(FR32_PADDING_MAP, source, target, offset, len)
+    write_unpadded_aux(&FR32_PADDING_MAP, source, target, offset, len)
 }
 
 pub fn write_unpadded_aux<W: ?Sized>(
-    padding_map: PaddingMap,
+    padding_map: &PaddingMap,
     source: &[u8],
     target: &mut W,
     offset_bytes: usize,
@@ -208,7 +208,7 @@ where
         let start = offset.bytes;
         let bits_to_skip = offset.bits;
         let offset_total_bits = offset.total_bits();
-        let next_boundary = padding_map.next_fr_end(offset);
+        let next_boundary = padding_map.next_fr_end(&offset);
         let end = next_boundary.bytes;
 
         let current_fr_bits_end = next_boundary.total_bits() - padding_map.padding_bits();
@@ -225,7 +225,7 @@ where
 
         let bits_to_take = min(bits_remaining, available_bits);
 
-        let taken = restricted.into_iter().take(bits_to_take);
+        let taken = restricted.take(bits_to_take);
         bits_out.extend(taken);
 
         bits_remaining -= bits_to_take;
