@@ -1,8 +1,6 @@
-use fr32::Fr32Ary;
-use std::cmp::{self, max, min};
-use std::fmt::Debug;
-use std::io::{self, Read, Result, Write};
-use std::iter::{FromIterator, Skip};
+use std::cmp::min;
+use std::io::{self, Write};
+use std::iter::FromIterator;
 
 use bitvec::{self, BitVec};
 use itertools::Itertools;
@@ -19,23 +17,22 @@ pub struct BytesBits {
 }
 
 impl BytesBits {
-    fn total_bits(&self) -> usize {
-        self.bytes * 8 + self.bits
-    }
-
-    fn from_bits(bits: usize) -> BytesBits {
+    pub fn from_bits(bits: usize) -> BytesBits {
         BytesBits {
             bytes: bits / 8,
             bits: bits % 8,
         }
     }
+    pub fn total_bits(&self) -> usize {
+        self.bytes * 8 + self.bits
+    }
 
-    fn is_byte_aligned(&self) -> bool {
+    pub fn is_byte_aligned(&self) -> bool {
         self.bits == 0
     }
 
     // How many distinct bytes are needed to represent data of this size?
-    fn bytes_needed(&self) -> usize {
+    pub fn bytes_needed(&self) -> usize {
         self.bytes + if self.bits == 0 {
             0
         } else {
@@ -64,7 +61,7 @@ fn transform_bit_pos(p: usize, from_size: usize, to_size: usize) -> usize {
 fn transform_byte_pos(p: usize, from_bit_size: usize, to_bit_size: usize) -> usize {
     let bit_pos = p * 8;
     let transformed_bit_pos = transform_bit_pos(bit_pos, from_bit_size, to_bit_size);
-    let transformed_byte_pos1 = (transformed_bit_pos as f64 / 8.);
+    let transformed_byte_pos1 = transformed_bit_pos as f64 / 8.;
 
     (if from_bit_size < to_bit_size {
         transformed_byte_pos1.ceil()
@@ -74,7 +71,7 @@ fn transform_byte_pos(p: usize, from_bit_size: usize, to_bit_size: usize) -> usi
 }
 
 impl PaddingMap {
-    fn new(data_bits: usize, representation_bits: usize) -> PaddingMap {
+    pub fn new(data_bits: usize, representation_bits: usize) -> PaddingMap {
         assert!(data_bits <= representation_bits);
         PaddingMap {
             data_chunk_bits: data_bits,
@@ -82,40 +79,40 @@ impl PaddingMap {
         }
     }
 
-    fn padding_bits(&self) -> usize {
+    pub fn padding_bits(&self) -> usize {
         self.padded_chunk_bits - self.data_chunk_bits
     }
 
-    fn expand_bits(&self, size: usize) -> usize {
+    pub fn expand_bits(&self, size: usize) -> usize {
         transform_bit_pos(size, self.data_chunk_bits, self.padded_chunk_bits)
     }
 
-    fn contract_bits(&self, size: usize) -> usize {
+    pub fn contract_bits(&self, size: usize) -> usize {
         transform_bit_pos(size, self.padded_chunk_bits, self.data_chunk_bits)
     }
 
-    fn expand_bytes(&self, bytes: usize) -> usize {
+    pub fn expand_bytes(&self, bytes: usize) -> usize {
         transform_byte_pos(bytes, self.data_chunk_bits, self.padded_chunk_bits)
     }
 
-    fn contract_bytes(&self, bytes: usize) -> usize {
+    pub fn contract_bytes(&self, bytes: usize) -> usize {
         transform_byte_pos(bytes, self.padded_chunk_bits, self.data_chunk_bits)
     }
 
-    fn padded_bytes_bits_from_bits(&self, bits: usize) -> BytesBits {
+    pub fn padded_bytes_bits_from_bits(&self, bits: usize) -> BytesBits {
         let expanded = self.expand_bits(bits);
         BytesBits::from_bits(expanded)
     }
 
-    fn padded_bytes_bits_from_bytes(&self, bytes: usize) -> BytesBits {
+    pub fn padded_bytes_bits_from_bytes(&self, bytes: usize) -> BytesBits {
         self.padded_bytes_bits_from_bits(bytes * 8)
     }
 
-    fn padded_bytes_are_aligned(&self, bytes: usize) -> bool {
+    pub fn padded_bytes_are_aligned(&self, bytes: usize) -> bool {
         self.padded_bytes_bits_from_bytes(bytes).is_byte_aligned()
     }
 
-    fn next_fr_end(&self, current: BytesBits) -> BytesBits {
+    pub fn next_fr_end(&self, current: BytesBits) -> BytesBits {
         let current_bits = current.total_bits();
 
         let (previous, remainder) = div_rem(current_bits, self.padded_chunk_bits);
@@ -126,33 +123,20 @@ impl PaddingMap {
             previous + self.padded_chunk_bits
         };
 
-        println!(
-            "current_bits: {}; next_bit_boundary: {}",
-            current_bits, next_bit_boundary
-        );
-
         BytesBits::from_bits(next_bit_boundary)
     }
 }
 
-pub const Fr32PaddingMap: PaddingMap = PaddingMap {
+pub const FR32_PADDING_MAP: PaddingMap = PaddingMap {
     data_chunk_bits: FR_UNPADDED_BITS,
     padded_chunk_bits: FR_PADDED_BITS,
 };
-
-fn pad_position(map: PaddingMap, unpadded_position: BytesBits) -> BytesBits {
-    let unpadded_bits = unpadded_position.total_bits();
-    unimplemented!();
-}
-fn unpad_position(map: PaddingMap, unpadded_position: BytesBits) -> BytesBits {
-    unimplemented!();
-}
 
 pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<usize>
 where
     W: Write,
 {
-    write_padded_aux(Fr32PaddingMap, source, target)
+    write_padded_aux(FR32_PADDING_MAP, source, target)
 }
 
 pub fn write_padded_aux<W: ?Sized>(
@@ -167,8 +151,6 @@ where
         .into_iter()
         .chunks(padding_map.data_chunk_bits);
 
-    let mut actual_written = 0;
-
     for chunk in unpadded_chunks.into_iter() {
         let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
 
@@ -179,7 +161,6 @@ where
         let out = &bits.into_boxed_slice();
 
         target.write_all(&out)?;
-        actual_written += out.len();
     }
     // Always return the expected number of bytes, since this function will fail if write_all does.
     Ok(source.len())
@@ -197,7 +178,7 @@ pub fn write_unpadded<W: ?Sized>(
 where
     W: Write,
 {
-    write_unpadded_aux(Fr32PaddingMap, source, target, offset, len)
+    write_unpadded_aux(FR32_PADDING_MAP, source, target, offset, len)
 }
 
 pub fn write_unpadded_aux<W: ?Sized>(
@@ -206,7 +187,7 @@ pub fn write_unpadded_aux<W: ?Sized>(
     target: &mut W,
     offset_bytes: usize,
     len: usize,
-) -> (io::Result<usize>)
+) -> io::Result<usize>
 where
     W: Write,
 {
@@ -214,12 +195,7 @@ where
     let mut offset = padding_map.padded_bytes_bits_from_bytes(offset_bytes);
 
     let mut bits_out = BitVec::<bitvec::LittleEndian, u8>::new();
-    println!(
-        "bits_remaining: {}; source.len(): {}",
-        bits_remaining,
-        source.len()
-    );
-    while (bits_remaining > 0) {
+    while bits_remaining > 0 {
         let start = offset.bytes;
         let bits_to_skip = offset.bits;
         let offset_total_bits = offset.total_bits();
@@ -229,7 +205,6 @@ where
         let current_fr_bits_end = next_boundary.total_bits() - padding_map.padding_bits();
         let bits_to_next_boundary = current_fr_bits_end - offset_total_bits;
 
-        println!("raw_bits from {} to {}", start, end);
         let raw_bits = BitVec::<bitvec::LittleEndian, u8>::from(&source[start..end]);
         let skipped = raw_bits.into_iter().skip(bits_to_skip);
 
@@ -237,10 +212,6 @@ where
         let restricted = skipped.take(bits_to_next_boundary);
 
         let available_bits = ((end - start) * 8) - bits_to_skip;
-        println!(
-            "start: {}; end: {}; bits_remaining: {}; available_bits: {}; bits_to_skip: {}",
-            start, end, bits_remaining, available_bits, bits_to_skip
-        );
 
         let bits_to_take = min(bits_remaining, available_bits);
 
@@ -248,16 +219,11 @@ where
         bits_out.extend(taken);
 
         bits_remaining -= bits_to_take;
-        println!(
-            "bits_to_take: {}; bits_remaining: {}",
-            bits_to_take, bits_remaining
-        );
 
         offset = BytesBits {
             bytes: end,
             bits: 0,
         };
-        println!("new offset: {:?}", offset);
     }
 
     // TODO: Don't write the whole output into a huge BitVec.
@@ -266,84 +232,15 @@ where
 
     let boxed_slice = bits_out.into_boxed_slice();
 
-    target.write_all(&boxed_slice);
+    target.write_all(&boxed_slice)?;
 
     Ok(len)
-}
-
-// offset and num_bytes are based on the unpadded data, so
-// if [0, 1, ..., 255] was the original unpadded data, offset 3 and len 4 would return
-// [2, 3, 4, 5].
-pub fn write_unpadded_aux_old<W: ?Sized>(
-    padding_map: PaddingMap,
-    source: &[u8],
-    target: &mut W,
-    offset: usize,
-    len: usize,
-) -> io::Result<usize>
-where
-    W: Write,
-{
-    // assuming 32byte aligned (4 u64 = 1Fr)
-    // TODO: Handle non-aligned cases.
-    //assert!(padding_map.padded_bytes_are_aligned(offset));
-
-    let offset_bb = padding_map.padded_bytes_bits_from_bytes(offset);
-    let start_padded = offset_bb.bytes;
-
-    let len_bb = padding_map.padded_bytes_bits_from_bytes(len);
-    let padded_len = len_bb.bytes_needed();
-    let extra_bits = len_bb.bits;
-    println!(
-        "offset_bits = {}; extra_bits = {}",
-        offset_bb.bits, extra_bits
-    );
-
-    //    assert!(extra_bits == 0);
-
-    let end_padded = start_padded + padded_len;
-
-    println!(
-        "start_padded: {}; len: {}; padded_len: {}; offset_bb: {:?}; len_bb: {:?}; end_padded: {}",
-        start_padded, len, padded_len, offset_bb, len_bb, end_padded
-    );
-
-    let raw_bits = BitVec::<bitvec::LittleEndian, u8>::from(&source[start_padded..end_padded]);
-
-    let padded_chunks = raw_bits
-        .into_iter()
-        .skip(offset_bb.bits)
-        .chunks(padding_map.padded_chunk_bits);
-
-    //    let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(
-    //        padded_chunks.into_iter().flat_map(|c| c).into_iter(),
-    //    );
-    //    target.write_all(&bits.into_boxed_slice());
-
-    let unpadded_chunks = padded_chunks
-        .into_iter()
-        .flat_map(|chunk| chunk.take(padding_map.data_chunk_bits));
-
-    let truncated = unpadded_chunks.take(len * 8);
-
-    let bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(truncated);
-
-    target.write_all(&bits.into_boxed_slice());
-
-    // Always return the expected number of bytes, since this function will fail if write_all does.
-    Ok(padded_len)
-}
-
-enum Bits<T> {
-    Normal(T),
-    Final(T),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::{Rng, SeedableRng, XorShiftRng};
-    use std::io;
 
     #[test]
     fn test_position() {
@@ -406,7 +303,7 @@ mod tests {
         let mut padded = Vec::new();
         let padded_written = write_padded(&data, &mut padded).unwrap();
         assert_eq!(padded_written, len);
-        assert_eq!(padded.len(), Fr32PaddingMap.expand_bytes(len));
+        assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(len));
 
         let mut unpadded = Vec::new();
         let unpadded_written = write_unpadded(&padded, &mut unpadded, 0, len).unwrap();
@@ -420,7 +317,6 @@ mod tests {
 
         let len = 1016;
         let data: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
-        let data: Vec<u8> = (0..len).map(|_| 123).collect();
         let mut padded = Vec::new();
         write_padded(&data, &mut padded).unwrap();
 
@@ -429,7 +325,7 @@ mod tests {
             write_unpadded(&padded, &mut unpadded, 0, 1016).unwrap();
             let expected = &data[0..1016];
 
-            //            assert_eq!(expected.len(), unpadded.len());
+            assert_eq!(expected.len(), unpadded.len());
             assert_eq!(expected, &unpadded[..]);
         }
 
@@ -438,7 +334,7 @@ mod tests {
             write_unpadded(&padded, &mut unpadded, 0, 44).unwrap();
             let expected = &data[0..44];
 
-            //            assert_eq!(expected.len(), unpadded.len());
+            assert_eq!(expected.len(), unpadded.len());
             assert_eq!(expected, &unpadded[..]);
         }
         {
@@ -448,25 +344,6 @@ mod tests {
             write_unpadded(&padded, &mut unpadded, start, len).unwrap();
             let expected = &data[start..start + len];
 
-            println!("data[0..{}]: {:?}", start, &data[0..start]);
-            println!(
-                "data[{}..{}+{}]: {:?}",
-                start,
-                start,
-                len,
-                &data[start..start + len]
-            );
-            //assert_eq!(expected.len(), unpadded.len());
-            print!("expected: ");
-            for (i, elt) in expected.iter().enumerate() {
-                print!("{}: {:#b}; ", i, elt)
-            }
-            println!("");
-            print!("unpadded: ");
-            for (i, elt) in unpadded[..].iter().enumerate() {
-                print!("{}: {:#b}; ", i, elt)
-            }
-            println!("");
             assert_eq!(expected, &unpadded[..]);
         }
     }
