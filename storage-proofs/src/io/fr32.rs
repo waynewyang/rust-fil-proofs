@@ -21,7 +21,7 @@ where
 // Return the length to which target should be truncated.
 // We might should also handle zero-padding what will become the final byte of target.
 // Technically, this should be okay though because that byte will always be overwritten later.
-// IF we decide this is unnecessary, then we don't need to pass target at all.
+// If we decide this is unnecessary, then we don't need to pass target at all.
 pub fn almost_truncate_to_unpadded_bytes<W: ?Sized>(
     _target: &mut W,
     length: u64,
@@ -154,9 +154,9 @@ impl PaddingMap {
     }
 
     // For a seekable target, return
-    // - the actual padded size in bytes,
-    // - the unpadded size in bytes which generated the padded size,
-    // - and a BitByte representing the number of bits and bytes of actual data contained.
+    // - the actual padded size in bytes
+    // - the unpadded size in bytes which generated the padded size
+    // - a BitByte representing the number of bits and bytes of actual data contained
     pub fn target_offsets<W: ?Sized>(&self, target: &mut W) -> io::Result<(u64, u64, BitByte)>
     where
         W: Seek,
@@ -170,8 +170,8 @@ impl PaddingMap {
     }
 
     // For a given number of padded_bytes, calculate and return
-    // - the unpadded size in bytes which generates the padded size,
-    // - and a BitByte representing the number of bits and bytes of actual data contained when so generated.
+    // - the unpadded size in bytes which generates the padded size
+    // - a BitByte representing the number of bits and bytes of actual data contained when so generated
     pub fn calculate_offsets(&self, padded_bytes: u64) -> io::Result<(u64, BitByte)> {
         // Convert to unpadded equivalent, rounding down.
         let unpadded_bytes = self.contract_bytes(padded_bytes as usize);
@@ -224,9 +224,6 @@ where
     W: Read + Write + Seek,
 {
     let (padded_offset_bytes, _, offset) = padding_map.target_offsets(target)?;
-
-    //    // Convert unpadded back to padded BUT NOW WITH BIT-LEVEL PRECISION.
-    //    let offset = padding_map.padded_bit_bytes_from_bits(unpadded_bytes as usize * 8);
 
     // The next boundary marks the start of the following Fr.
     let next_boundary = padding_map.next_fr_end(&offset);
