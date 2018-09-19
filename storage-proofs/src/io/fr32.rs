@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::iter::FromIterator;
 
 use bitvec::{self, BitVec};
@@ -112,6 +112,8 @@ impl PaddingMap {
         self.padded_bit_bytes_from_bytes(bytes).is_byte_aligned()
     }
 
+    // Returns a BitByte representing the distance between current position and next Fr boundary.
+    // Padding isdirectly before the boundary.
     pub fn next_fr_end(&self, current: &BitByte) -> BitByte {
         let current_bits = current.total_bits();
 
@@ -120,7 +122,7 @@ impl PaddingMap {
         let next_bit_boundary = if remainder == 0 {
             current_bits + self.padded_chunk_bits
         } else {
-            previous + self.padded_chunk_bits
+            (previous * self.padded_chunk_bits) + self.padded_chunk_bits
         };
 
         BitByte::from_bits(next_bit_boundary)
@@ -134,26 +136,103 @@ pub const FR32_PADDING_MAP: PaddingMap = PaddingMap {
 
 pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<usize>
 where
-    W: Write,
+    W: Read + Write + Seek,
 {
     write_padded_aux(&FR32_PADDING_MAP, source, target)
 }
 
 pub fn write_padded_aux<W: ?Sized>(
     padding_map: &PaddingMap,
+    // Source should contain the previous byte written iff needed. This seems too picky.
     source: &[u8],
     target: &mut W,
 ) -> io::Result<usize>
 where
+    W: Read + Write + Seek,
+{
+    let padded_offset_bytes = target.seek(SeekFrom::End(0))? as usize;
+    let offset = BitByte::from_bits(padded_offset_bytes * 8);
+    let next_boundary = padding_map.next_fr_end(&offset);
+    let bytes_to_next_boundary = next_boundary.bytes - offset.bytes;
+
+    if offset.is_byte_aligned() {
+        write_padded_aligned(padding_map, source, target, bytes_to_next_boundary) // FIXME: what is aligned offset?
+    } else {
+        // if the offset bits are not zero, existing data is not aligned.
+        let prefix = &mut [0u8; 1];
+        target.seek(SeekFrom::End(prefix.len() as i64))?;
+        target.read_exact(prefix)?;
+
+        let prefix_bits = offset.bits;
+
+        write_padded_unaligned(
+            padding_map,
+            source,
+            target,
+            prefix[0],
+            prefix_bits,
+            bytes_to_next_boundary,
+        )
+    }
+}
+
+pub fn write_padded_unaligned<W: ?Sized>(
+    padding_map: &PaddingMap,
+    source: &[u8],
+    target: &mut W,
+    prefix: u8,
+    prefix_bits: usize,
+    next_boundary_bytes: usize,
+) -> io::Result<usize>
+where
+    W: Read + Write + Seek,
+{
+    let new_prefix = (prefix << prefix_bits) & source[0];
+    target.write_all(&[new_prefix])?;
+
+    write_padded_aligned(padding_map, &source[1..], target, next_boundary_bytes)
+}
+
+pub fn write_padded_aligned<W: ?Sized>(
+    padding_map: &PaddingMap,
+    source: &[u8],
+    target: &mut W,
+    next_boundary_bytes: usize,
+) -> io::Result<usize>
+where
     W: Write,
 {
-    let unpadded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
-        .into_iter()
-        .chunks(padding_map.data_chunk_bits);
+    let next_boundary_bits = (next_boundary_bytes * 8) - padding_map.padding_bits();
+    let source_bits = source.len() * 8;
+    let (first_bits, pad_first_chunk) = if next_boundary_bits < source_bits {
+        (next_boundary_bits, true)
+    } else {
+        (source_bits, false)
+    };
 
     let mut bits_out = BitVec::<bitvec::LittleEndian, u8>::new();
 
-    for chunk in unpadded_chunks.into_iter() {
+    let first_unpadded_chunk = BitVec::<bitvec::LittleEndian, u8>::from(source)
+        .into_iter()
+        .take(first_bits);
+
+    {
+        bits_out.extend(first_unpadded_chunk);
+
+        // pad
+        if pad_first_chunk {
+            for _ in 0..padding_map.padding_bits() {
+                bits_out.push(false)
+            }
+        }
+    };
+
+    let remaining_unpadded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
+        .into_iter()
+        .skip(first_bits)
+        .chunks(padding_map.data_chunk_bits);
+
+    for chunk in remaining_unpadded_chunks.into_iter() {
         let mut bits = BitVec::<bitvec::LittleEndian, u8>::from_iter(chunk);
 
         // pad
@@ -250,6 +329,7 @@ where
 mod tests {
     use super::*;
     use rand::{Rng, SeedableRng, XorShiftRng};
+    use std::io::Cursor;
 
     #[test]
     fn test_position() {
@@ -266,8 +346,10 @@ mod tests {
     #[test]
     fn test_write_padded() {
         let data = vec![255u8; 151];
-        let mut padded = Vec::new();
-        let written = write_padded(&data, &mut padded).unwrap();
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        let written = write_padded(&data, &mut cursor).unwrap();
+        let padded = cursor.into_inner();
         assert_eq!(written, 151);
         assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(151));
         assert_eq!(&padded[0..31], &data[0..31]);
@@ -278,12 +360,50 @@ mod tests {
     }
 
     #[test]
-    fn test_write_padded_multiple() {
-        let data = vec![255u8; 151];
-        let mut padded = Vec::new();
-        let mut written = write_padded(&data[0..75], &mut padded).unwrap();
-        written += write_padded(&data[75..], &mut padded).unwrap();
+    fn test_write_padded_multiple_aligned() {
+        let data = vec![255u8; 256];
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        let mut written = write_padded(&data[0..128], &mut cursor).unwrap();
+        written += write_padded(&data[128..], &mut cursor).unwrap();
+        let padded = cursor.into_inner();
 
+        assert_eq!(written, 256);
+        assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(256));
+        assert_eq!(&padded[0..31], &data[0..31]);
+        assert_eq!(padded[31], 0b0011_1111);
+        assert_eq!(padded[32], 0b1111_1111);
+        assert_eq!(&padded[33..63], vec![255u8; 30].as_slice());
+        assert_eq!(padded[63], 0b0011_1111);
+    }
+
+    #[test]
+    fn test_write_padded_multiple_first_aligned() {
+        let data = vec![255u8; 265];
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        let mut written = write_padded(&data[0..128], &mut cursor).unwrap();
+        written += write_padded(&data[128..], &mut cursor).unwrap();
+        let padded = cursor.into_inner();
+
+        assert_eq!(written, 265);
+        assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(265));
+        assert_eq!(&padded[0..31], &data[0..31]);
+        assert_eq!(padded[31], 0b0011_1111);
+        assert_eq!(padded[32], 0b1111_1111);
+        assert_eq!(&padded[33..63], vec![255u8; 30].as_slice());
+        assert_eq!(padded[63], 0b0011_1111);
+    }
+
+    #[test]
+    fn test_write_padded_multiple_unaligned() {
+        let data = vec![255u8; 151];
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        let mut written = write_padded(&data[0..25], &mut cursor).unwrap();
+        written += write_padded(&data[25..], &mut cursor).unwrap();
+        let padded = cursor.into_inner();
+        println!("padded: {:?}", padded);
         assert_eq!(written, 151);
         assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(151));
         assert_eq!(&padded[0..31], &data[0..31]);
@@ -303,8 +423,10 @@ mod tests {
         // FIXME: This doesn't exercise the ability to write a second time, which is the point of the extra_bytes in write_test.
         source.extend(vec![9, 0xff]);
 
-        let mut buf = Vec::new();
-        write_padded(&source, &mut buf).unwrap();
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        write_padded(&source, &mut cursor).unwrap();
+        let buf = cursor.into_inner();
 
         for i in 0..31 {
             assert_eq!(buf[i], i as u8 + 1);
@@ -326,8 +448,11 @@ mod tests {
     fn test_read_write_padded() {
         let len = 1016; // Use a multiple of 254.
         let data = vec![255u8; len];
-        let mut padded = Vec::new();
-        let padded_written = write_padded(&data, &mut padded).unwrap();
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        let padded_written = write_padded(&data, &mut cursor).unwrap();
+        let padded = cursor.into_inner();
+
         assert_eq!(padded_written, len);
         assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(len));
 
@@ -343,8 +468,10 @@ mod tests {
 
         let len = 1016;
         let data: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
-        let mut padded = Vec::new();
-        write_padded(&data, &mut padded).unwrap();
+        let buf = Vec::new();
+        let mut cursor = Cursor::new(buf);
+        write_padded(&data, &mut cursor).unwrap();
+        let padded = cursor.into_inner();
 
         {
             let mut unpadded = Vec::new();

@@ -1,6 +1,5 @@
 use libc;
 use std::fs::{create_dir_all, metadata, File, OpenOptions};
-use std::io::BufWriter;
 use std::path::Path;
 
 use api::util;
@@ -109,10 +108,8 @@ impl SectorManager for DiskManager {
             .append(true)
             .open(access)
             .map_err(|_| 40)
-            .and_then(|file| {
-                let mut buf = BufWriter::new(file);
-
-                write_padded(data, &mut buf)
+            .and_then(|mut file| {
+                write_padded(data, &mut file)
                     .map_err(|_| 41)
                     .map(|n| n as u64)
             })
