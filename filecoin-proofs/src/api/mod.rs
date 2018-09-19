@@ -194,13 +194,11 @@ pub unsafe extern "C" fn get_unsealed(
         0,
         sector_bytes,
     ) {
-        Ok(_) => 0,
-        // TODO: this can differ, due to padding. Figure out how to best handle this.
-        // if num_bytes == sector_bytes {
-        //     0
-        // } else {
-        //     30
-        // },
+        Ok(num_bytes) => if num_bytes == sector_bytes {
+            0
+        } else {
+            30
+        },
         Err(_) => 30,
     }
 }

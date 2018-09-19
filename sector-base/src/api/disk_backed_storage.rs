@@ -341,6 +341,7 @@ mod tests {
 
         // ensure the file we wrote to contains the expected bytes
         assert_eq!(504, buf.len());
+
         // also ensure this is the amount we calculate
         let expected_padded_bytes = FR32_PADDING_MAP.expand_bytes(contents.len());
         assert_eq!(expected_padded_bytes, output_bytes_written);
@@ -350,6 +351,7 @@ mod tests {
             assert_eq!(0, unsafe {
                 num_unsealed_bytes(storage, access, num_bytes_result_ptr)
             });
+
             // ensure num_unsealed_bytes returns the number of data bytes written.
             assert_eq!(500, *num_bytes_result_ptr as usize);
         }
@@ -360,9 +362,10 @@ mod tests {
 
             // read the file into memory again - this time after we truncate
             let buf = read_all_bytes(access);
-            println!("buf: {:?}", buf);
+
             // ensure the file we wrote to contains the expected bytes
             assert_eq!(33, buf.len());
+
             // All but last bytes are identical.
             assert_eq!(contents[0..32], buf[0..32]);
 
@@ -385,7 +388,7 @@ mod tests {
 
             // read the file into memory again - this time after we truncate
             let buf = read_all_bytes(access);
-            println!("buf: {:?}", buf);
+
             // ensure the file we wrote to contains the expected bytes
             assert_eq!(31, buf.len());
             assert_eq!(contents[0..31], buf[0..]);
@@ -400,7 +403,6 @@ mod tests {
             assert_eq!(buf.len(), *num_bytes_result_ptr as usize);
         }
 
-        //assert!();
         assert_eq!(0, unsafe { truncate_unsealed(storage, access, 1) });
 
         // read the file into memory again - this time after we truncate

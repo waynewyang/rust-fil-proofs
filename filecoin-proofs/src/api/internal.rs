@@ -321,14 +321,6 @@ pub fn get_unsealed_range(
     let fr_count = (sector_bytes * 8) / FR_PADDED_BITS;
     let original_len = (fr_count * FR_UNPADDED_BITS) / 8;
 
-    println!(
-        "reading {}..{} ({}, {})",
-        offset,
-        offset + num_bytes,
-        unsealed.len(),
-        original_len
-    );
-
     let written = write_unpadded(
         &unsealed,
         &mut buf_writer,
