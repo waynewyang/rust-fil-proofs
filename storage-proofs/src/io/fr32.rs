@@ -8,9 +8,36 @@ use itertools::Itertools;
 pub const FR_UNPADDED_BITS: usize = 254;
 pub const FR_PADDED_BITS: usize = 256;
 
-#[derive(Debug)]
+pub fn target_unpadded_bytes<W: ?Sized>(target: &mut W) -> io::Result<u64>
+where
+    W: Seek,
+{
+    let (_, unpadded, _) = FR32_PADDING_MAP.target_offsets(target)?;
+
+    Ok(unpadded)
+}
+
+// Leave the actual truncation to caller, since we can't do it generically.
+// Return the length to which target should be truncated.
+// We might should also handle zero-padding what will become the final byte of target.
+// Technically, this should be okay though because that byte will always be overwritten later.
+// IF we decide this is unnecessary, then we don't need to pass target at all.
+pub fn almost_truncate_to_unpadded_bytes<W: ?Sized>(
+    _target: &mut W,
+    length: u64,
+) -> io::Result<usize>
+where
+    W: Read + Write + Seek,
+{
+    let padded = FR32_PADDING_MAP.padded_bit_bytes_from_bytes(length as usize);
+    let real_length = padded.bytes_needed();
+    let _final_bit_count = padded.bits;
+    // TODO (maybe): Rewind stream and use final_bit_count to zero-pad last byte of data (post-truncation).
+    Ok(real_length)
+}
 
 // Invariant: it is an error for bit_part to be > 7.
+#[derive(Debug)]
 pub struct BitByte {
     bytes: usize,
     bits: usize,
@@ -55,6 +82,108 @@ pub struct PaddingMap {
     padded_chunk_bits: usize,
 }
 
+pub const FR32_PADDING_MAP: PaddingMap = PaddingMap {
+    data_chunk_bits: FR_UNPADDED_BITS,
+    padded_chunk_bits: FR_PADDED_BITS,
+};
+
+impl PaddingMap {
+    pub fn new(data_bits: usize, representation_bits: usize) -> PaddingMap {
+        assert!(data_bits <= representation_bits);
+        PaddingMap {
+            data_chunk_bits: data_bits,
+            padded_chunk_bits: representation_bits,
+        }
+    }
+
+    pub fn padding_bits(&self) -> usize {
+        self.padded_chunk_bits - self.data_chunk_bits
+    }
+
+    pub fn expand_bits(&self, size: usize) -> usize {
+        transform_bit_pos(size, self.data_chunk_bits, self.padded_chunk_bits)
+    }
+
+    pub fn contract_bits(&self, size: usize) -> usize {
+        transform_bit_pos(size, self.padded_chunk_bits, self.data_chunk_bits)
+    }
+
+    // Calculate padded byte size from unpadded byte size, rounding up.
+    pub fn expand_bytes(&self, bytes: usize) -> usize {
+        transform_byte_pos(bytes, self.data_chunk_bits, self.padded_chunk_bits)
+    }
+
+    // Calculate unpadded byte size from padded byte size, rounding down.
+    pub fn contract_bytes(&self, bytes: usize) -> usize {
+        transform_byte_pos(bytes, self.padded_chunk_bits, self.data_chunk_bits)
+    }
+
+    pub fn padded_bit_bytes_from_bits(&self, bits: usize) -> BitByte {
+        let expanded = self.expand_bits(bits);
+        BitByte::from_bits(expanded)
+    }
+
+    // Calculate and return bits and bytes to which a given number of bytes expands.
+    pub fn padded_bit_bytes_from_bytes(&self, bytes: usize) -> BitByte {
+        BitByte::from_bytes(self.expand_bytes(bytes))
+    }
+
+    pub fn unpadded_bit_bytes_from_bits(&self, bits: usize) -> BitByte {
+        let contracted = self.contract_bits(bits);
+        BitByte::from_bits(contracted)
+    }
+
+    pub fn unpadded_bit_bytes_from_bytes(&self, bytes: usize) -> BitByte {
+        BitByte::from_bytes(self.contract_bytes(bytes))
+    }
+
+    // Returns a BitByte representing the distance between current position and next Fr boundary.
+    // Padding is directly before the boundary.
+    pub fn next_fr_end(&self, current: &BitByte) -> BitByte {
+        let current_bits = current.total_bits();
+
+        let (previous, remainder) = div_rem(current_bits, self.padded_chunk_bits);
+
+        let next_bit_boundary = if remainder == 0 {
+            current_bits + self.padded_chunk_bits
+        } else {
+            (previous * self.padded_chunk_bits) + self.padded_chunk_bits
+        };
+
+        BitByte::from_bits(next_bit_boundary)
+    }
+
+    // For a seekable target, return
+    // - the actual padded size in bytes,
+    // - the unpadded size in bytes which generated the padded size,
+    // - and a BitByte representing the number of bits and bytes of actual data contained.
+    pub fn target_offsets<W: ?Sized>(&self, target: &mut W) -> io::Result<(u64, u64, BitByte)>
+    where
+        W: Seek,
+    {
+        // The current position in target is the number of PADDED bytes already written.
+        let padded_bytes = target.seek(SeekFrom::End(0))?;
+
+        let (unpadded_bytes, padded_bit_bytes) = self.calculate_offsets(padded_bytes)?;
+
+        Ok((padded_bytes, unpadded_bytes, padded_bit_bytes))
+    }
+
+    // For a given number of padded_bytes, calculate and return
+    // - the unpadded size in bytes which generates the padded size,
+    // - and a BitByte representing the number of bits and bytes of actual data contained when so generated.
+    pub fn calculate_offsets(&self, padded_bytes: u64) -> io::Result<(u64, BitByte)> {
+        // Convert to unpadded equivalent, rounding down.
+        let unpadded_bytes = self.contract_bytes(padded_bytes as usize);
+
+        // Convert back to padded BUT NOW WITH BIT-LEVEL PRECISION.
+        // The result contains information about how many partial bits (if any) were in the last padded byte.
+        let padded_bit_bytes = self.padded_bit_bytes_from_bits(unpadded_bytes * 8);
+
+        Ok((unpadded_bytes as u64, padded_bit_bytes))
+    }
+}
+
 fn div_rem(a: usize, b: usize) -> (usize, usize) {
     let div = a / b;
     let rem = a % b;
@@ -79,81 +208,6 @@ fn transform_byte_pos(p: usize, from_bit_size: usize, to_bit_size: usize) -> usi
     }) as usize
 }
 
-impl PaddingMap {
-    pub fn new(data_bits: usize, representation_bits: usize) -> PaddingMap {
-        assert!(data_bits <= representation_bits);
-        PaddingMap {
-            data_chunk_bits: data_bits,
-            padded_chunk_bits: representation_bits,
-        }
-    }
-
-    pub fn padding_bits(&self) -> usize {
-        self.padded_chunk_bits - self.data_chunk_bits
-    }
-
-    pub fn expand_bits(&self, size: usize) -> usize {
-        transform_bit_pos(size, self.data_chunk_bits, self.padded_chunk_bits)
-    }
-
-    pub fn contract_bits(&self, size: usize) -> usize {
-        transform_bit_pos(size, self.padded_chunk_bits, self.data_chunk_bits)
-    }
-
-    pub fn expand_bytes(&self, bytes: usize) -> usize {
-        transform_byte_pos(bytes, self.data_chunk_bits, self.padded_chunk_bits)
-    }
-
-    pub fn contract_bytes(&self, bytes: usize) -> usize {
-        transform_byte_pos(bytes, self.padded_chunk_bits, self.data_chunk_bits)
-    }
-
-    pub fn padded_bit_bytes_from_bits(&self, bits: usize) -> BitByte {
-        let expanded = self.expand_bits(bits);
-        BitByte::from_bits(expanded)
-    }
-
-    pub fn padded_bit_bytes_from_bytes(&self, bytes: usize) -> BitByte {
-        BitByte::from_bytes(self.expand_bytes(bytes))
-        //self.padded_bit_bytes_from_bits(bytes * 8)
-    }
-
-    pub fn unpadded_bit_bytes_from_bits(&self, bits: usize) -> BitByte {
-        let contracted = self.contract_bits(bits);
-        BitByte::from_bits(contracted)
-    }
-
-    pub fn unpadded_bit_bytes_from_bytes(&self, bytes: usize) -> BitByte {
-        BitByte::from_bytes(self.contract_bytes(bytes))
-        //        self.unpadded_bit_bytes_from_bits(bytes * 8)
-    }
-
-    pub fn padded_bytes_are_aligned(&self, bytes: usize) -> bool {
-        self.padded_bit_bytes_from_bytes(bytes).is_byte_aligned()
-    }
-
-    // Returns a BitByte representing the distance between current position and next Fr boundary.
-    // Padding is directly before the boundary.
-    pub fn next_fr_end(&self, current: &BitByte) -> BitByte {
-        let current_bits = current.total_bits();
-
-        let (previous, remainder) = div_rem(current_bits, self.padded_chunk_bits);
-
-        let next_bit_boundary = if remainder == 0 {
-            current_bits + self.padded_chunk_bits
-        } else {
-            (previous * self.padded_chunk_bits) + self.padded_chunk_bits
-        };
-
-        BitByte::from_bits(next_bit_boundary)
-    }
-}
-
-pub const FR32_PADDING_MAP: PaddingMap = PaddingMap {
-    data_chunk_bits: FR_UNPADDED_BITS,
-    padded_chunk_bits: FR_PADDED_BITS,
-};
-
 pub fn write_padded<W: ?Sized>(source: &[u8], target: &mut W) -> io::Result<usize>
 where
     W: Read + Write + Seek,
@@ -169,15 +223,10 @@ fn write_padded_aux<W: ?Sized>(
 where
     W: Read + Write + Seek,
 {
-    // The current position in target is the number of PADDED bytes already written.
-    let padded_offset_bytes = target.seek(SeekFrom::End(0))?;
+    let (padded_offset_bytes, _, offset) = padding_map.target_offsets(target)?;
 
-    // Convert to unpadded representation.
-    let unpadded_bit_bytes =
-        padding_map.unpadded_bit_bytes_from_bytes(padded_offset_bytes as usize);
-
-    // Convert unppaded to padded BUT NOW WITH BIT-LEVEL PRECISION.
-    let offset = padding_map.padded_bit_bytes_from_bits(unpadded_bit_bytes.total_bits());
+    //    // Convert unpadded back to padded BUT NOW WITH BIT-LEVEL PRECISION.
+    //    let offset = padding_map.padded_bit_bytes_from_bits(unpadded_bytes as usize * 8);
 
     // The next boundary marks the start of the following Fr.
     let next_boundary = padding_map.next_fr_end(&offset);

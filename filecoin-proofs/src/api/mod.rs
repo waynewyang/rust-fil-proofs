@@ -232,7 +232,7 @@ pub extern "C" fn status_to_string(status_code: StatusCode) -> *const libc::c_ch
         41 => CString::new("failed to create unsealed sector"),
         50 => CString::new("failed to open file for truncating"),
         51 => CString::new("failed to set file length"),
-        60 => CString::new("could not read unsealed sector file metadata"),
+        60 => CString::new("could not read unsealed sector file size"),
         70 => CString::new("could not create sector access parent directory"),
         71 => CString::new("could not create sector file"),
         72 => CString::new("could not stringify path buffer"),

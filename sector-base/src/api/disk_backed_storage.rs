@@ -1,10 +1,12 @@
 use libc;
-use std::fs::{create_dir_all, metadata, File, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::Path;
 
 use api::util;
 use api::{SectorConfig, SectorManager, SectorStore, StatusCode};
-use storage_proofs::io::fr32::write_padded;
+use storage_proofs::io::fr32::{
+    almost_truncate_to_unpadded_bytes, target_unpadded_bytes, write_padded,
+};
 
 pub const REAL_SECTOR_SIZE: u64 = 128;
 pub const FAST_SECTOR_SIZE: u64 = 1024;
@@ -91,17 +93,29 @@ impl SectorManager for DiskManager {
     }
 
     fn num_unsealed_bytes(&self, access: String) -> Result<u64, StatusCode> {
-        metadata(access).map(|m| m.len()).map_err(|_| 60)
+        OpenOptions::new()
+            .read(true)
+            .open(access)
+            .map_err(|_| 60)
+            .map(|mut f| target_unpadded_bytes(&mut f).map_err(|_| 60))
+            .and_then(|n| n)
     }
 
     fn truncate_unsealed(&self, access: String, size: u64) -> Result<(), StatusCode> {
-        OpenOptions::new()
-            .write(true)
-            .open(access)
-            .map_err(|_| 50)
-            .and_then(|file| file.set_len(size).map_err(|_| 51).map(|_| ()))
+        // I couldn't wrap my head around all ths result mapping, so here it is all laid out.
+        match OpenOptions::new().write(true).open(&access) {
+            Ok(mut file) => match almost_truncate_to_unpadded_bytes(&mut file, size) {
+                Ok(padded_size) => match file.set_len(padded_size as u64) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(51),
+                },
+                Err(_) => Err(51),
+            },
+            Err(_) => Err(51),
+        }
     }
 
+    // TODO: write_unsealed should refuse to write more data than will fit. In that case, return 0.
     fn write_unsealed(&self, access: String, data: &[u8]) -> Result<u64, StatusCode> {
         OpenOptions::new()
             .read(true)
@@ -328,11 +342,65 @@ mod tests {
         // ensure the file we wrote to contains the expected bytes
         assert_eq!(504, buf.len());
         // also ensure this is the amount we calculate
-        assert_eq!(
-            FR32_PADDING_MAP.expand_bytes(contents.len()),
-            output_bytes_written
-        );
+        let expected_padded_bytes = FR32_PADDING_MAP.expand_bytes(contents.len());
+        assert_eq!(expected_padded_bytes, output_bytes_written);
 
+        {
+            let num_bytes_result_ptr = &mut 0u64;
+            assert_eq!(0, unsafe {
+                num_unsealed_bytes(storage, access, num_bytes_result_ptr)
+            });
+            // ensure num_unsealed_bytes returns the number of data bytes written.
+            assert_eq!(500, *num_bytes_result_ptr as usize);
+        }
+
+        {
+            // Truncate to 32 unpadded bytes
+            assert_eq!(0, unsafe { truncate_unsealed(storage, access, 32) });
+
+            // read the file into memory again - this time after we truncate
+            let buf = read_all_bytes(access);
+            println!("buf: {:?}", buf);
+            // ensure the file we wrote to contains the expected bytes
+            assert_eq!(33, buf.len());
+            // All but last bytes are identical.
+            assert_eq!(contents[0..32], buf[0..32]);
+
+            // The last byte (first of new Fr) has been shifted by two bits of padding.
+            assert_eq!(contents[32] << 2, buf[32]);
+
+            let num_bytes_result_ptr = &mut 0u64;
+
+            assert_eq!(0, unsafe {
+                num_unsealed_bytes(storage, access, num_bytes_result_ptr)
+            });
+
+            // ensure that our byte-counting function works
+            assert_eq!(32, *num_bytes_result_ptr as usize);
+        }
+
+        {
+            // Truncate to 31 unpadded bytes
+            assert_eq!(0, unsafe { truncate_unsealed(storage, access, 31) });
+
+            // read the file into memory again - this time after we truncate
+            let buf = read_all_bytes(access);
+            println!("buf: {:?}", buf);
+            // ensure the file we wrote to contains the expected bytes
+            assert_eq!(31, buf.len());
+            assert_eq!(contents[0..31], buf[0..]);
+
+            let num_bytes_result_ptr = &mut 0u64;
+
+            assert_eq!(0, unsafe {
+                num_unsealed_bytes(storage, access, num_bytes_result_ptr)
+            });
+
+            // ensure that our byte-counting function works
+            assert_eq!(buf.len(), *num_bytes_result_ptr as usize);
+        }
+
+        //assert!();
         assert_eq!(0, unsafe { truncate_unsealed(storage, access, 1) });
 
         // read the file into memory again - this time after we truncate
