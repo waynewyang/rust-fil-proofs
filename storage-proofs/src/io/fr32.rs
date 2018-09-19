@@ -172,28 +172,22 @@ where
     W: Read + Write + Seek,
 {
     // The current position in target is the number of PADDED bytes already written.
-    // Subtract one from seek's result because it returns index of next byte, not 'mark position'.
     let padded_offset_bytes = target.seek(SeekFrom::End(0))?;
 
-    // Offset decomposes this into bytes and bits.
-    //let offset = BitByte::from_bytes(padded_offset_bytes as usize);
-    let xxx = padding_map.unpadded_bit_bytes_from_bytes(padded_offset_bytes as usize);
-    let offset = padding_map.padded_bit_bytes_from_bits(xxx.total_bits());
-    println!("xxx: {:?}", xxx);
-    println!(
-        "padded_offset_bytes: {}; offset: {:?}",
-        padded_offset_bytes, offset
-    );
+    // Convert to unpadded representation.
+    let unpadded_bit_bytes =
+        padding_map.unpadded_bit_bytes_from_bytes(padded_offset_bytes as usize);
+
+    // Convert unppaded to padded BUT NOW WITH BIT-LEVEL PRECISION.
+    let offset = padding_map.padded_bit_bytes_from_bits(unpadded_bit_bytes.total_bits());
 
     // The next boundary marks the start of the following Fr.
     let next_boundary = padding_map.next_fr_end(&offset);
 
-    // How many whole bytes lies between the current position and the new Fr?
+    // How many whole bytes lie between the current position and the new Fr?
     let bytes_to_next_boundary = next_boundary.bytes - offset.bytes;
 
-    println!("offset: {:?}", offset);
     if offset.is_byte_aligned() {
-        println!("??????????????????????");
         // If current offset is byte-aligned, then write_padded_aligned's invariant is satisfied,
         // and we can call it directly.
         write_padded_aligned(
@@ -204,66 +198,39 @@ where
             None,
         )
     } else {
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        // Otherwise, we need to get aligned by filling in the previous, incomplete bytes.
+        // Otherwise, we need to align by filling in the previous, incomplete byte.
         // Prefix will hold that single byte.
         let prefix_bytes = &mut [0u8; 1];
 
         // Seek backward far enough to read just the prefix.
-        let p = target.seek(SeekFrom::Start(padded_offset_bytes - 1))?;
+        target.seek(SeekFrom::Start(padded_offset_bytes - 1))?;
 
-        println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: {}", p);
         // And read it in.
         target.read_exact(prefix_bytes)?;
 
-        let prefix = prefix_bytes[0];
+        // NOTE: seek position is now back to where we started.
 
         // How many significant bits did the prefix contain?
         let prefix_bit_count = offset.bits;
 
-        println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        // We will fill in with new bits for a total of one byte.
-        let new_bit_count = 8 - prefix_bit_count;
+        // Rewind by 1 again because we need to overwrite the previous, incomplete byte.
+        target.seek(SeekFrom::Start(padded_offset_bytes - 1))?;
 
-        // The existing bits will be in the least-significant positions, because our representation
-        // is little-endian.
-        // Shift the old bits left (making them more significant, 'older') to make room for the new bytes;
-        let shifted = prefix << new_bit_count;
-        println!(
-            "prefix_bit_count: {}; new_bit_count: {}; shifted: {}",
-            prefix_bit_count, new_bit_count, shifted
-        );
+        // Package up the prefix into a bitvec.
+        let mut prefix_bitvec = BitVec::<bitvec::LittleEndian, u8>::from(&prefix_bytes[..]);
 
-        println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-        match source {
-            [] => Ok(0),
-            [first_byte, rest..] => {
-                // Logical OR the shifted bytes with the first byte of the source to obtain the new prefix.
-                let new_prefix = shifted | first_byte;
-                println!(
-                    "prefix: {}, first_byte: {} new_prefix: {}",
-                    prefix, first_byte, new_prefix
-                );
+        // But only take the number of bits that are actually part of the prefix!
+        prefix_bitvec.truncate(prefix_bit_count);
 
-                // Rewind by 1.
-                target.seek(SeekFrom::Start(padded_offset_bytes - 1))?;
-
-                // Write the new prefix to the target.
-                //target.write_all(&[new_prefix])?;
-                let mut prefix_bitvec = BitVec::<bitvec::LittleEndian, u8>::from(&prefix_bytes[..]);
-
-                prefix_bitvec.truncate(prefix_bit_count);
-
-                // Now we are aligned and can write the rest.
-                write_padded_aligned(
-                    padding_map,
-                    source,
-                    target,
-                    (bytes_to_next_boundary * 8) - prefix_bit_count,
-                    Some(prefix_bitvec),
-                )
-            }
-        }
+        // Now we are aligned and can write the rest. We have to pass the prefix to
+        // write_padded_aligned because we don't yet know what bits should follow the prefix.
+        write_padded_aligned(
+            padding_map,
+            source,
+            target,
+            (bytes_to_next_boundary * 8) - prefix_bit_count,
+            Some(prefix_bitvec),
+        )
     }
 }
 
@@ -279,24 +246,31 @@ fn write_padded_aligned<W: ?Sized>(
 where
     W: Write,
 {
+    // bits_out is a sink for bits, to be written at the end.
+    // If we received prefix_bits, put them in the sink first.
     let mut bits_out = match prefix_bits {
         None => BitVec::<bitvec::LittleEndian, u8>::new(),
         Some(bv) => bv,
     };
 
-    println!("bits_out.len(): {}", bits_out.len());
-
-    //let next_boundary_bits = (next_boundary_bytes * 8) - padding_map.padding_bits();
+    // We want to read up to the next Fr boundary, but we don't want to read the padding.
     let next_boundary_bits = next_boundary_bits - padding_map.padding_bits();
+
+    // How many new bits do we need to write?
     let source_bits = source.len() * 8;
+
+    // How many bits should we write in the first chunk - and should that chunk be padded?
     let (first_bits, pad_first_chunk) = if next_boundary_bits < source_bits {
+        // If we have enough bits (more than to the next boundary), we will write all of them first,
+        // and add padding.
         (next_boundary_bits, true)
     } else {
+        // Otherwise, we will write everything we have – but we won't pad it.
         (source_bits, false)
     };
 
-    // Write the first chunk, padding if necessary.
     {
+        // Write the first chunk, padding if necessary.
         let first_unpadded_chunk = BitVec::<bitvec::LittleEndian, u8>::from(source)
             .into_iter()
             .take(first_bits);
@@ -311,8 +285,8 @@ where
         }
     }
 
-    // Write all following chunks, padding if necessary.
     {
+        // Write all following chunks, padding if necessary.
         let remaining_unpadded_chunks = BitVec::<bitvec::LittleEndian, u8>::from(source)
             .into_iter()
             .skip(first_bits)
@@ -333,7 +307,6 @@ where
     }
 
     let out = &bits_out.into_boxed_slice();
-
     target.write_all(&out)?;
 
     // Always return the expected number of bytes, since this function will fail if write_all does.
@@ -491,15 +464,12 @@ mod tests {
             let mut written = write_padded(&data[0..i], &mut cursor).unwrap();
             written += write_padded(&data[i..], &mut cursor).unwrap();
             let padded = cursor.into_inner();
-            println!("i: {}", i);
-            println!("padded: {:?}", padded);
             assert_eq!(written, 151);
             assert_eq!(padded.len(), FR32_PADDING_MAP.expand_bytes(151));
             assert_eq!(&padded[0..31], &data[0..31]);
             assert_eq!(padded[31], 0b0011_1111);
             assert_eq!(padded[32], 0b1111_1111);
             assert_eq!(&padded[33..63], vec![255u8; 30].as_slice());
-            println!("padded[60..65]: {:?}", &padded[60..65]);
             assert_eq!(padded[63], 0b0011_1111);
         }
     }
