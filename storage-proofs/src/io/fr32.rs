@@ -47,8 +47,6 @@ impl BitByte {
             (self.bits + 8) / 8
         }
     }
-
-    //pub fn padded_byte_pos_to_bit_byte(p: usize, from_size: usize, to_size: usize) -> BitByte {}
 }
 
 #[derive(Debug)]
@@ -135,7 +133,7 @@ impl PaddingMap {
     }
 
     // Returns a BitByte representing the distance between current position and next Fr boundary.
-    // Padding isdirectly before the boundary.
+    // Padding is directly before the boundary.
     pub fn next_fr_end(&self, current: &BitByte) -> BitByte {
         let current_bits = current.total_bits();
 
@@ -214,9 +212,11 @@ where
         let prefix_bit_count = offset.bits;
 
         // Rewind by 1 again because we need to overwrite the previous, incomplete byte.
+        // Because we've now rewound to before the prefix, target is indeed byte-aligned.
+        // (Only the last byte was incomplete.)
         target.seek(SeekFrom::Start(padded_offset_bytes - 1))?;
 
-        // Package up the prefix into a bitvec.
+        // Package up the prefix into a BitVec.
         let mut prefix_bitvec = BitVec::<bitvec::LittleEndian, u8>::from(&prefix_bytes[..]);
 
         // But only take the number of bits that are actually part of the prefix!
@@ -235,7 +235,7 @@ where
 }
 
 // Invariant: the input so far MUST be byte-aligned.
-// This means the previous byte written to target MUST have been written completely.
+// Any prefix_bits passed will be inserted before the bits pulled from source.
 fn write_padded_aligned<W: ?Sized>(
     padding_map: &PaddingMap,
     source: &[u8],
