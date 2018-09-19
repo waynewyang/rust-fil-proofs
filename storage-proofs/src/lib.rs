@@ -7,6 +7,7 @@
     feature = "cargo-clippy",
     warn(type_complexity, too_many_arguments)
 )]
+#![feature(slice_patterns)]
 
 #[macro_use]
 extern crate failure;
