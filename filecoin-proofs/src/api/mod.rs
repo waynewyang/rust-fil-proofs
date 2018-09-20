@@ -332,13 +332,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Slow test – run only when compiled for release.
+    //#[ignore] // Slow test – run only when compiled for release.
     fn seal_unsealed_roundtrip_test() {
         seal_unsealed_roundtrip_aux(ConfiguredStore::Test);
     }
 
     #[test]
-    #[ignore] // Slow test – run only when compiled for release.
+    // #[ignore] // Slow test – run only when compiled for release.
     fn seal_unsealed_roundtrip_proof_test() {
         seal_unsealed_roundtrip_aux(ConfiguredStore::ProofTest);
     }

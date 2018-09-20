@@ -315,12 +315,6 @@ pub fn get_unsealed_range(
         ZigZagDrgPoRep::extract_all(&public_params(sector_bytes), &replica_id, &data)?
     };
 
-    // original data is padded with 2 bits for each FR_UNPADDED_BITS (254) bits, rounded up to full bytes
-    // we remove the 2 bits, but not if the original data was less than the sector size.
-    // TODO: Move these calculations to helpers. They will be needed elsewhere too.
-    let fr_count = (sector_bytes * 8) / FR_PADDED_BITS;
-    let original_len = (fr_count * FR_UNPADDED_BITS) / 8;
-
     let written = write_unpadded(
         &unsealed,
         &mut buf_writer,
