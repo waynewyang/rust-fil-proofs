@@ -361,10 +361,9 @@ mod tests {
 
     fn make_data_for_storage(sector_store: &'static SectorStore) -> Vec<u8> {
         let mut rng = thread_rng();
-        let length = storage_bytes(sector_store) - 50; // Leave some room for padding.
-        (0..length)
-            .map(|_| rng.gen::<u8>() & 0b00111111) // Mask out two most significant bits so data is always Fr.
-            .collect::<Vec<u8>>()
+        (0..storage_bytes(sector_store))
+            .map(|_| rng.gen())
+            .collect()
     }
 
     fn seal_verify_aux(cs: ConfiguredStore) {
@@ -502,6 +501,13 @@ mod tests {
             File::open(unsafe { util::pbuf_from_c(get_unsealed_range_output_path) }).unwrap();
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
+
+        assert_eq!(
+            contents.len(),
+            buf.len(),
+            "length of original and unsealed contents differed for {:?}",
+            cs
+        );
 
         assert_eq!(
             contents[..],
