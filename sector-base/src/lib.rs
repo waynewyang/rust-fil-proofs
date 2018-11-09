@@ -21,6 +21,9 @@ extern crate storage_proofs;
 #[cfg(test)]
 extern crate tempfile;
 
+#[macro_use]
+extern crate ffi_derive;
+
 pub mod api;
 pub mod error;
 pub mod io;

@@ -1,0 +1,13 @@
+[package]
+name = "ffi-derive"
+version = "0.1.0"
+authors = ["Sidney Keese <sidney@carbonfive.com>"]
+edition = "2018"
+
+[dependencies]
+syn = "0.11.11"
+quote = "0.3.15"
+regex = "1"
+
+[lib]
+crate-type = ["proc-macro"]

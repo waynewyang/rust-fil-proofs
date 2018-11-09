@@ -44,6 +44,7 @@ pub fn err_code_and_msg(err: &Error) -> (SBResponseStatus, *const libc::c_char) 
 //////////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct NewStagingSectorAccessResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -69,18 +70,12 @@ impl Drop for NewStagingSectorAccessResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_new_staging_sector_access_response(
-    ptr: *mut NewStagingSectorAccessResponse,
-) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// NewSealedSectorAccessResponse
 /////////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct NewSealedSectorAccessResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -106,18 +101,12 @@ impl Drop for NewSealedSectorAccessResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_new_sealed_sector_access_response(
-    ptr: *mut NewSealedSectorAccessResponse,
-) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// WriteAndPreprocesssResponse
 ///////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct WriteAndPreprocessResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -142,18 +131,12 @@ impl Drop for WriteAndPreprocessResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_write_and_preprocess_response(
-    ptr: *mut WriteAndPreprocessResponse,
-) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// ReadRawResponse
 ///////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct ReadRawResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -186,16 +169,12 @@ impl Drop for ReadRawResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_read_raw_response(ptr: *mut ReadRawResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// TruncateUnsealedResponse
 ////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct TruncateUnsealedResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -218,16 +197,12 @@ impl Drop for TruncateUnsealedResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_truncate_unsealed_response(ptr: *mut TruncateUnsealedResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// NumUnsealedBytesResponse
 ////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct NumUnsealedBytesResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -252,16 +227,12 @@ impl Drop for NumUnsealedBytesResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_num_unsealed_bytes_response(ptr: *mut NumUnsealedBytesResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GetMaxUserBytesPerStagedSectorResponse
 //////////////////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct GetMaxUserBytesPerStagedSectorResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -286,18 +257,12 @@ impl Drop for GetMaxUserBytesPerStagedSectorResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_get_max_user_bytes_per_staged_sector(
-    ptr: *mut GetMaxUserBytesPerStagedSectorResponse,
-) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// MaxUnsealedBytesPerSectorResponse
 /////////////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct MaxUnsealedBytesPerSectorResponse {
     pub status_code: SBResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -320,11 +285,4 @@ impl Drop for MaxUnsealedBytesPerSectorResponse {
             drop(c_str_to_rust_str(self.error_msg));
         };
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn destroy_max_unsealed_bytes_per_sector_response(
-    ptr: *mut MaxUnsealedBytesPerSectorResponse,
-) {
-    let _ = Box::from_raw(ptr);
 }

@@ -28,7 +28,8 @@ members = [
   "storage-proofs",
   "sector-base",
   "storage-backend",
-  "ffi-toolkit"
+  "ffi-toolkit",
+  "ffi-derive",
 ]
 
 [profile.test]
