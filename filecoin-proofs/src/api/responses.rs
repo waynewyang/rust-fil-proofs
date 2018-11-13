@@ -28,6 +28,7 @@ pub enum FCPResponseStatus {
 ////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct SealResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -58,16 +59,12 @@ impl Drop for SealResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_seal_response(ptr: *mut SealResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// VerifySealResponse
 //////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct VerifySealResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -92,16 +89,12 @@ impl Drop for VerifySealResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_verify_seal_response(ptr: *mut VerifySealResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GetUnsealedRangeResponse
 ////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct GetUnsealedRangeResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -126,16 +119,12 @@ impl Drop for GetUnsealedRangeResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_get_unsealed_range_response(ptr: *mut GetUnsealedRangeResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GetUnsealedResponse
 ///////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct GetUnsealedResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -158,16 +147,12 @@ impl Drop for GetUnsealedResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_get_unsealed_response(ptr: *mut GetUnsealedResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GeneratePoSTResult
 //////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct GeneratePoSTResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -202,16 +187,12 @@ impl Drop for GeneratePoSTResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_generate_post_response(ptr: *mut GeneratePoSTResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// VerifyPoSTResult
 ////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct VerifyPoSTResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -234,11 +215,6 @@ impl Drop for VerifyPoSTResponse {
             drop(c_str_to_rust_str(self.error_msg));
         };
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn destroy_verify_post_response(ptr: *mut VerifyPoSTResponse) {
-    let _ = Box::from_raw(ptr);
 }
 
 // err_code_and_msg accepts an Error struct and produces a tuple of response
@@ -273,6 +249,7 @@ pub fn err_code_and_msg(err: &Error) -> (FCPResponseStatus, *const libc::c_char)
 /////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct InitSectorBuilderResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -297,16 +274,12 @@ impl Drop for InitSectorBuilderResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_init_sector_builder_response(ptr: *mut InitSectorBuilderResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// AddPieceResponse
 ////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct AddPieceResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -331,16 +304,12 @@ impl Drop for AddPieceResponse {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_add_piece_response(ptr: *mut AddPieceResponse) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GetMaxStagedBytesPerSector
 //////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct GetMaxStagedBytesPerSector {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -365,18 +334,12 @@ impl Drop for GetMaxStagedBytesPerSector {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn destroy_get_max_user_bytes_per_staged_sector_response(
-    ptr: *mut GetMaxStagedBytesPerSector,
-) {
-    let _ = Box::from_raw(ptr);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// GetSealedSectorMetadataResponse
 ///////////////////////////////////
 
 #[repr(C)]
+#[derive(Destroy)]
 pub struct FindSealedSectorMetadataResponse {
     pub status_code: FCPResponseStatus,
     pub error_msg: *const libc::c_char,
@@ -417,11 +380,4 @@ impl Drop for FindSealedSectorMetadataResponse {
             drop(c_str_to_rust_str(self.sector_access));
         };
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn destroy_find_sealed_sector_metadata_response(
-    ptr: *mut FindSealedSectorMetadataResponse,
-) {
-    let _ = Box::from_raw(ptr);
 }
