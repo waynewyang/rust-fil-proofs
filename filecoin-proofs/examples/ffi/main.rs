@@ -142,43 +142,43 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
     }
 
     // poll for sealed sector metadata through the FFI
-    {
-        let (result_tx, result_rx) = mpsc::channel();
-        let (kill_tx, kill_rx) = mpsc::channel();
+    // {
+    //     let (result_tx, result_rx) = mpsc::channel();
+    //     let (kill_tx, kill_rx) = mpsc::channel();
 
-        let atomic_ptr = AtomicPtr::new(sector_builder);
+    //     let atomic_ptr = AtomicPtr::new(sector_builder);
 
-        let _join_handle = thread::spawn(move || {
-            let sector_builder = atomic_ptr.into_inner();
+    //     let _join_handle = thread::spawn(move || {
+    //         let sector_builder = atomic_ptr.into_inner();
 
-            loop {
-                match kill_rx.try_recv() {
-                    Ok(_) => return,
-                    _ => (),
-                };
+    //         loop {
+    //             match kill_rx.try_recv() {
+    //                 Ok(_) => return,
+    //                 _ => (),
+    //             };
 
-                let resp = find_sealed_sector_metadata(sector_builder, 124);
-                if (*resp).status_code != 0 {
-                    return;
-                }
+    //             let resp = find_sealed_sector_metadata(sector_builder, 124);
+    //             if (*resp).status_code != 0 {
+    //                 return;
+    //             }
 
-                if (*resp).metadata_exists {
-                    let _ = result_tx.send((*resp).sector_id).unwrap();
-                }
+    //             if (*resp).metadata_exists {
+    //                 let _ = result_tx.send((*resp).sector_id).unwrap();
+    //             }
 
-                thread::sleep(Duration::from_millis(1000));
-            }
-        });
+    //             thread::sleep(Duration::from_millis(1000));
+    //         }
+    //     });
 
-        defer!({
-            let _ = kill_tx.send(true).unwrap();
-        });
+    //     defer!({
+    //         let _ = kill_tx.send(true).unwrap();
+    //     });
 
-        // wait up to 5 minutes for sealing to complete
-        let now_sealed_sector_id = result_rx.recv_timeout(Duration::from_secs(300)).unwrap();
+    //     // wait up to 5 minutes for sealing to complete
+    //     let now_sealed_sector_id = result_rx.recv_timeout(Duration::from_secs(300)).unwrap();
 
-        assert_eq!(now_sealed_sector_id, 124);
-    }
+    //     assert_eq!(now_sealed_sector_id, 124);
+    // }
 
     Ok(())
 }

@@ -3,7 +3,7 @@ extern crate syn;
 #[macro_use]
 extern crate quote;
 
-use self::proc_macro::{TokenStream};
+use self::proc_macro::TokenStream;
 use self::syn::Ident;
 
 #[proc_macro_derive(Destroy)]
@@ -18,9 +18,8 @@ fn impl_destroy(ast: &syn::DeriveInput) -> quote::Tokens {
     let re = regex::Regex::new(r"(?P<c>[A-Z])").unwrap();
 
     let name = &ast.ident;
-    let method_name = Ident::new(
-        format!("destroy{}", re.replace_all(&name.to_string(), "_$c")).to_lowercase()
-    );
+    let method_name =
+        Ident::new(format!("destroy{}", re.replace_all(&name.to_string(), "_$c")).to_lowercase());
 
     quote! {
         #[no_mangle]
