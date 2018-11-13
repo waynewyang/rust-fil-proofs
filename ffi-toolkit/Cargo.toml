@@ -6,3 +6,12 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 libc = "0.2"
+
+[dependencies.ffi-derive]
+optional = true
+version = "0.1.0"
+path = "./ffi-derive"
+
+[features]
+default = ["derive"]
+derive = ["ffi-derive"]

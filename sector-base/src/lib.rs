@@ -11,6 +11,8 @@
 extern crate bitvec;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate ffi_derive;
 extern crate ffi_toolkit;
 extern crate itertools;
 extern crate libc;
@@ -20,9 +22,6 @@ extern crate storage_proofs;
 
 #[cfg(test)]
 extern crate tempfile;
-
-#[macro_use]
-extern crate macros;
 
 pub mod api;
 pub mod error;
