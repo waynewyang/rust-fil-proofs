@@ -29,7 +29,6 @@ members = [
   "sector-base",
   "storage-backend",
   "ffi-toolkit",
-  "ffi-derive",
 ]
 
 [profile.test]

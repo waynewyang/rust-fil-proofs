@@ -15,7 +15,7 @@ libc = "0.2"
 rand = "0.4"
 storage-proofs = { path = "../storage-proofs" }
 ffi-toolkit = { path = "../ffi-toolkit" }
-ffi-derive = { path = "../ffi-derive" }
+macros = { path = "./macros" }
 
 [dependencies.pairing]
 version = "0.14.2"

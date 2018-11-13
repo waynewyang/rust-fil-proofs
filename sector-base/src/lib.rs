@@ -22,7 +22,7 @@ extern crate storage_proofs;
 extern crate tempfile;
 
 #[macro_use]
-extern crate ffi_derive;
+extern crate macros;
 
 pub mod api;
 pub mod error;
