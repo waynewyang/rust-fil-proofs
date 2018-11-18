@@ -1,6 +1,7 @@
 use api::sector_builder::helpers::add_piece::*;
 use api::sector_builder::helpers::get_seal_status::*;
 use api::sector_builder::helpers::get_sectors_ready_for_sealing::*;
+use api::sector_builder::helpers::load_sector_builder_state::load_sector_builder_state;
 use api::sector_builder::helpers::read_piece_from_sealed_sector::read_piece_from_sealed_sector;
 use api::sector_builder::metadata::*;
 use api::sector_builder::state::*;
@@ -71,18 +72,21 @@ impl SectorBuilder {
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
         // Build the SectorBuilder's initial state. If available, we
-        // reconstitute this stage from persistence. If not, we create it from
-        // scratch.
-        let state = Arc::new(SectorBuilderState {
-            _metadata_dir: metadata_dir.into(),
-            prover_id,
-            staged: Mutex::new(StagedState {
-                sector_id_nonce: last_committed_sector_id,
-                sectors: Default::default(),
-                sectors_accepting_data: Default::default(),
-            }),
-            sealed: Default::default(),
-        });
+        // reconstitute this stage from persisted metadata. If not, we create it
+        // from scratch.
+        let state =
+            Arc::new(
+                load_sector_builder_state(prover_id)?.unwrap_or_else(|| SectorBuilderState {
+                    _metadata_dir: metadata_dir.into(),
+                    prover_id,
+                    staged: Mutex::new(StagedState {
+                        sector_id_nonce: last_committed_sector_id,
+                        sectors: Default::default(),
+                        sectors_accepting_data: Default::default(),
+                    }),
+                    sealed: Default::default(),
+                }),
+            );
 
         // Initialize a SectorStore and wrap it in an Arc so we can access it
         // from multiple threads. Our implementation assumes that the
