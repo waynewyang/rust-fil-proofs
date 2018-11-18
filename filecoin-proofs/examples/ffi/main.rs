@@ -53,39 +53,43 @@ unsafe fn create_and_add_piece(
     )
 }
 
-unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
-    let (sector_builder, max_bytes) = {
-        let metadata_dir = tempfile::tempdir().unwrap();
-        let staging_dir = tempfile::tempdir().unwrap();
-        let sealed_dir = tempfile::tempdir().unwrap();
-        let mut prover_id: [u8; 31] = [0; 31];
-        let sector_store_config: ConfiguredStore = ConfiguredStore_ProofTest;
+unsafe fn create_sector_builder(
+    prover_id: [u8; 31],
+) -> (*mut SectorBuilder, u64) {
+    let metadata_dir = tempfile::tempdir().unwrap();
+    let staging_dir = tempfile::tempdir().unwrap();
+    let sealed_dir = tempfile::tempdir().unwrap();
+    let mut prover_id: [u8; 31] = prover_id;
+    let sector_store_config: ConfiguredStore = ConfiguredStore_ProofTest;
 
-        let resp = init_sector_builder(
-            &sector_store_config,
-            123,
-            rust_str_to_c_str(metadata_dir.path().to_str().unwrap()),
-            &mut prover_id,
-            rust_str_to_c_str(sealed_dir.path().to_str().unwrap()),
-            rust_str_to_c_str(staging_dir.path().to_str().unwrap()),
-            2,
-        );
-        defer!(destroy_init_sector_builder_response(resp));
+    let resp = init_sector_builder(
+        &sector_store_config,
+        123,
+        rust_str_to_c_str(metadata_dir.path().to_str().unwrap()),
+        &mut prover_id,
+        rust_str_to_c_str(sealed_dir.path().to_str().unwrap()),
+        rust_str_to_c_str(staging_dir.path().to_str().unwrap()),
+        2,
+    );
+    defer!(destroy_init_sector_builder_response(resp));
 
-        if (*resp).status_code != 0 {
-            panic!("{}", c_str_to_rust_str((*resp).error_msg))
-        }
+    if (*resp).status_code != 0 {
+        panic!("{}", c_str_to_rust_str((*resp).error_msg))
+    }
 
-        let resp_2 = get_max_user_bytes_per_staged_sector((*resp).sector_builder);
-        defer!(destroy_get_max_user_bytes_per_staged_sector_response(
+    let resp_2 = get_max_user_bytes_per_staged_sector((*resp).sector_builder);
+    defer!(destroy_get_max_user_bytes_per_staged_sector_response(
             resp_2
         ));
 
-        (
-            (*resp).sector_builder,
-            (*resp_2).max_staged_bytes_per_sector,
-        )
-    };
+    (
+        (*resp).sector_builder,
+        (*resp_2).max_staged_bytes_per_sector,
+    )
+}
+
+unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
+    let (sector_builder, max_bytes) = create_sector_builder([0; 31]);
     defer!(destroy_sector_builder(sector_builder));
 
     // TODO: Replace the hard-coded byte amounts with values computed
