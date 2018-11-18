@@ -4,8 +4,9 @@ use byteorder::WriteBytesExt;
 use error;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::fmt;
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct StagedSectorMetadata {
     pub sector_id: SectorId,
     pub sector_access: String,
@@ -26,6 +27,12 @@ pub struct SealedSectorMetadata {
     pub snark_proof: [u8; 384],
 }
 
+impl fmt::Debug for SealedSectorMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SealedSectorMetadata {{ sector_id: {}, sector_access: {}, pieces: {:?}, comm_r_star: {:?}, comm_r: {:?}, comm_d: {:?} }}", self.sector_id, self.sector_access, self.pieces, self.comm_r_star, self.comm_r, self.comm_d)
+    }
+}
+
 impl Default for SealedSectorMetadata {
     fn default() -> SealedSectorMetadata {
         SealedSectorMetadata {
@@ -40,7 +47,7 @@ impl Default for SealedSectorMetadata {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PieceMetadata {
     pub piece_key: String,
     pub num_bytes: u64,
