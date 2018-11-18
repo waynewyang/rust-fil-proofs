@@ -20,17 +20,17 @@ impl RocksDb {
 }
 
 impl KeyValueStore for RocksDb {
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
         self.db.put(key, value)?;
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let value = self.db.get(key)?;
         Ok(value.map(|x| x.to_vec()))
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    fn delete(&self, key: &[u8]) -> Result<()> {
         self.db.delete(key)?;
         Ok(())
     }

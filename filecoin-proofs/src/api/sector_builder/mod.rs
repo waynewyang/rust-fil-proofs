@@ -13,6 +13,7 @@ use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
+use api::sector_builder::kv_store::KeyValueStore;
 
 pub mod errors;
 mod helpers;
@@ -26,6 +27,10 @@ const NUM_SEAL_WORKERS: usize = 2;
 pub type SectorId = u64;
 
 pub struct SectorBuilder {
+    // Provides thread-safe access to a KeyValueStore, used to save/load
+    // SectorBuilder metadata.
+    kv_store: Arc<WrappedKeyValueStore>,
+
     // Provides thread-safe access to a SectorStore, used to interact with
     // sector storage.
     //
@@ -58,6 +63,10 @@ pub struct SectorBuilder {
     max_user_bytes_per_staged_sector: u64,
 }
 
+pub struct WrappedKeyValueStore {
+    inner: Box<KeyValueStore>
+}
+
 impl SectorBuilder {
     // Initialize and return a SectorBuilder from metadata persisted to disk if
     // it exists. Otherwise, initialize and return a fresh SectorBuilder. The
@@ -74,22 +83,29 @@ impl SectorBuilder {
         staged_sector_dir: S,
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
-        let kv_store = RocksDb::new(metadata_dir.into())?;
+        let kv_store = Arc::new(WrappedKeyValueStore {
+            inner: Box::new(RocksDb::new(metadata_dir.into())?)
+        });
 
         // Build the SectorBuilder's initial state. If available, we
         // reconstitute this stage from persisted metadata. If not, we create it
         // from scratch.
-        let loaded = load_sector_builder_state(kv_store, prover_id)?;
+        let state = {
+            let loaded = load_sector_builder_state(
+                kv_store.clone().inner.as_ref(),
+                prover_id
+            )?;
 
-        let state = Arc::new(loaded.unwrap_or_else(|| SectorBuilderState {
-            prover_id,
-            staged: Mutex::new(StagedState {
-                sector_id_nonce: last_committed_sector_id,
-                sectors: Default::default(),
-                sectors_accepting_data: Default::default(),
-            }),
-            sealed: Default::default(),
-        }));
+            Arc::new(loaded.unwrap_or_else(|| SectorBuilderState {
+                prover_id,
+                staged: Mutex::new(StagedState {
+                    sector_id_nonce: last_committed_sector_id,
+                    sectors: Default::default(),
+                    sectors_accepting_data: Default::default(),
+                }),
+                sealed: Default::default(),
+            }))
+        };
 
         // Initialize a SectorStore and wrap it in an Arc so we can access it
         // from multiple threads. Our implementation assumes that the
@@ -125,6 +141,7 @@ impl SectorBuilder {
             .max_unsealed_bytes_per_sector();
 
         Ok(SectorBuilder {
+            kv_store,
             seal_tx,
             seal_workers,
             sector_store,
