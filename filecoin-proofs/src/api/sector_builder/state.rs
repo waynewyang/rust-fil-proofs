@@ -16,7 +16,6 @@ pub struct SealedState {
 }
 
 pub struct SectorBuilderState {
-    pub _metadata_dir: String,
     pub prover_id: [u8; 31],
     pub staged: Mutex<StagedState>,
     pub sealed: Mutex<SealedState>,

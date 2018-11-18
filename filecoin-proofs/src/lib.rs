@@ -18,6 +18,7 @@ extern crate tempfile;
 extern crate failure;
 extern crate byteorder;
 extern crate itertools;
+extern crate rocksdb;
 
 pub mod api;
 pub mod error;

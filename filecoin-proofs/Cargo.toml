@@ -28,6 +28,7 @@ pbr = "1.0"
 tempfile = "3"
 byteorder = "1"
 itertools = "0.7.3"
+rocksdb = "0.10.1"
 
 [dev-dependencies]
 gperftools = { git = "https://github.com/dignifiedquire/rust-gperftools" }
@@ -38,7 +39,7 @@ version = "0.14.2"
 features = ["expose-arith"]
 
 [build-dependencies]
-bindgen = "0.43.1"
+bindgen = "0.37.0" # match rocksdb bindgen dep (see: https://github.com/rust-lang/cargo/issues/5237)
 cbindgen = "0.6.3"
 
 [features]
