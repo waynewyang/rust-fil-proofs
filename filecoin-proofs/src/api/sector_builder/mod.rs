@@ -63,7 +63,7 @@ impl SectorBuilder {
     // real metadata store is forthcoming.
     pub fn init_from_metadata<S: Into<String>>(
         sector_store_config: &SBConfiguredStore,
-        last_used_sector_id: u64,
+        last_committed_sector_id: u64,
         metadata_dir: S,
         prover_id: [u8; 31],
         sealed_sector_dir: S,
@@ -77,7 +77,7 @@ impl SectorBuilder {
             _metadata_dir: metadata_dir.into(),
             prover_id,
             staged: Mutex::new(StagedState {
-                sector_id_nonce: last_used_sector_id,
+                sector_id_nonce: last_committed_sector_id,
                 sectors: Default::default(),
                 sectors_accepting_data: Default::default(),
             }),
