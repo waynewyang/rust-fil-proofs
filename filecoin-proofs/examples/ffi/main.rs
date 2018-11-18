@@ -80,8 +80,8 @@ unsafe fn create_sector_builder(
 
     let resp_2 = get_max_user_bytes_per_staged_sector((*resp).sector_builder);
     defer!(destroy_get_max_user_bytes_per_staged_sector_response(
-            resp_2
-        ));
+        resp_2
+    ));
 
     (
         (*resp).sector_builder,
