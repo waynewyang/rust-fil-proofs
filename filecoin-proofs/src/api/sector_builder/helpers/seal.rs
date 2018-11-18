@@ -1,9 +1,12 @@
 use api::internal::seal as seal_internal;
 use api::sector_builder::errors::err_unrecov;
+use api::sector_builder::helpers::snapshot::make_snapshot;
+use api::sector_builder::helpers::snapshot::persist_snapshot;
 use api::sector_builder::metadata::sector_id_as_bytes;
 use api::sector_builder::metadata::SealedSectorMetadata;
 use api::sector_builder::state::SectorBuilderState;
 use api::sector_builder::SectorId;
+use api::sector_builder::WrappedKeyValueStore;
 use error;
 use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use sector_base::api::sector_store::SectorStore;
@@ -11,11 +14,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub fn seal(
+    kv_store: &Arc<WrappedKeyValueStore>,
     sector_store: &Arc<ConcreteSectorStore>,
     state: &Arc<SectorBuilderState>,
     sector_id: SectorId,
 ) -> error::Result<SealedSectorMetadata> {
-    let sealing_result = seal_aux(sector_store, state, sector_id);
+    let sealing_result = seal_aux(kv_store, sector_store, state, sector_id);
 
     // Update staged sector metadata, adding the error encountered while
     // sealing.
@@ -35,6 +39,7 @@ pub fn seal(
 }
 
 fn seal_aux(
+    kv_store: &Arc<WrappedKeyValueStore>,
     sector_store: &Arc<ConcreteSectorStore>,
     state: &Arc<SectorBuilderState>,
     sector_id: SectorId,
@@ -91,6 +96,13 @@ fn seal_aux(
         sealed_state
             .sectors
             .insert(sector_id, newly_sealed_sector.clone());
+
+        // Snapshot the SectorBuilder's state. As the state includes both sealed
+        // and staged state-maps, this function requires both locks.
+        let _ = persist_snapshot(
+            kv_store,
+            make_snapshot(&state.prover_id, &staged_state, &sealed_state),
+        )?;
     }
 
     Ok(newly_sealed_sector)

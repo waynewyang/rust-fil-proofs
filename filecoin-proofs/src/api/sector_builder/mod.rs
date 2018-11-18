@@ -1,9 +1,10 @@
 use api::sector_builder::helpers::add_piece::*;
 use api::sector_builder::helpers::get_seal_status::*;
 use api::sector_builder::helpers::get_sectors_ready_for_sealing::*;
-use api::sector_builder::helpers::load_sector_builder_state::load_sector_builder_state;
 use api::sector_builder::helpers::read_piece_from_sealed_sector::read_piece_from_sealed_sector;
+use api::sector_builder::helpers::snapshot::{load_snapshot, make_snapshot, persist_snapshot};
 use api::sector_builder::kv_store::rocksdb::RocksDb;
+use api::sector_builder::kv_store::KeyValueStore;
 use api::sector_builder::metadata::*;
 use api::sector_builder::state::*;
 use api::sector_builder::worker::*;
@@ -13,7 +14,6 @@ use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
-use api::sector_builder::kv_store::KeyValueStore;
 
 pub mod errors;
 mod helpers;
@@ -64,8 +64,11 @@ pub struct SectorBuilder {
 }
 
 pub struct WrappedKeyValueStore {
-    inner: Box<KeyValueStore>
+    inner: Box<KeyValueStore>,
 }
+
+unsafe impl Sync for WrappedKeyValueStore {}
+unsafe impl Send for WrappedKeyValueStore {}
 
 impl SectorBuilder {
     // Initialize and return a SectorBuilder from metadata persisted to disk if
@@ -84,17 +87,15 @@ impl SectorBuilder {
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(RocksDb::new(metadata_dir.into())?)
+            inner: Box::new(RocksDb::new(metadata_dir.into())?),
         });
 
         // Build the SectorBuilder's initial state. If available, we
         // reconstitute this stage from persisted metadata. If not, we create it
         // from scratch.
         let state = {
-            let loaded = load_sector_builder_state(
-                kv_store.clone().inner.as_ref(),
-                prover_id
-            )?;
+            let _ = load_snapshot(&kv_store, &prover_id)?;
+            let loaded = None;
 
             Arc::new(loaded.unwrap_or_else(|| SectorBuilderState {
                 prover_id,
@@ -126,6 +127,7 @@ impl SectorBuilder {
                     Worker::new(
                         n,
                         Arc::clone(&rx),
+                        Arc::clone(&kv_store),
                         Arc::clone(&sector_store),
                         Arc::clone(&state),
                     )
@@ -160,19 +162,19 @@ impl SectorBuilder {
     // Stages user piece-bytes for sealing. Note that add_piece calls are
     // processed sequentially to make bin packing easier.
     pub fn add_piece<S: Into<String>>(&self, piece_key: S, piece_bytes: &[u8]) -> Result<SectorId> {
-        let mut locked_staged_state = self.state.staged.lock().unwrap();
+        let mut staged_state = self.state.staged.lock().unwrap();
 
         // Write the piece to storage, obtaining the sector id with which the
         // piece-bytes are now associated.
         let destination_sector_id = add_piece(
             &self.sector_store,
-            &mut locked_staged_state,
+            &mut staged_state,
             piece_key,
             piece_bytes,
         )?;
 
         let to_be_sealed = get_sectors_ready_for_sealing(
-            &locked_staged_state,
+            &staged_state,
             self.max_user_bytes_per_staged_sector,
             self.max_num_staged_sectors,
             false,
@@ -180,7 +182,7 @@ impl SectorBuilder {
 
         // Mark the to-be-sealed sectors as no longer accepting data.
         for sector in to_be_sealed.iter() {
-            let _ = locked_staged_state
+            let _ = staged_state
                 .sectors_accepting_data
                 .remove(&sector.sector_id);
         }
@@ -195,6 +197,12 @@ impl SectorBuilder {
                 .send(Task::Seal(sector.sector_id, tx.clone()))
                 .unwrap();
         }
+
+        // Snapshot the SectorBuilder's state. As the state includes both sealed
+        // and staged state-maps, making a snapshot requires both locks.
+        let sealed_state = self.state.sealed.lock().unwrap();
+        let snapshot = make_snapshot(&self.state.prover_id, &staged_state, &sealed_state);
+        let _ = persist_snapshot(&self.kv_store, snapshot)?;
 
         Ok(destination_sector_id)
     }

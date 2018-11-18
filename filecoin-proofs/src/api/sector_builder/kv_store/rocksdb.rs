@@ -38,8 +38,8 @@ impl KeyValueStore for RocksDb {
 
 #[cfg(test)]
 mod tests {
-    use api::sector_builder::kv_store::KeyValueStore;
     use api::sector_builder::kv_store::rocksdb::RocksDb;
+    use api::sector_builder::kv_store::KeyValueStore;
 
     #[test]
     fn test_alpha() {

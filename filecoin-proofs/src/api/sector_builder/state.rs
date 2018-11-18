@@ -21,3 +21,20 @@ pub struct SectorBuilderState {
     pub staged: Mutex<StagedState>,
     pub sealed: Mutex<SealedState>,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct StateSnapshot {
+    pub prover_id: [u8; 31],
+    pub staged: StagedState,
+    pub sealed: SealedState,
+}
+
+impl Into<SectorBuilderState> for StateSnapshot {
+    fn into(self) -> SectorBuilderState {
+        SectorBuilderState {
+            prover_id: self.prover_id,
+            staged: Mutex::new(self.staged),
+            sealed: Mutex::new(self.sealed),
+        }
+    }
+}
