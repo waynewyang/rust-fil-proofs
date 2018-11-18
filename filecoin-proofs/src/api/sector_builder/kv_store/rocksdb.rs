@@ -1,6 +1,7 @@
 use api::sector_builder::kv_store::KeyValueStore;
 use error::Result;
-use rocksdb::{DBVector, DB};
+use rocksdb::Options;
+use rocksdb::DB;
 use std::path::Path;
 
 #[derive(Debug)]
@@ -10,22 +11,23 @@ pub struct RocksDb {
 
 impl RocksDb {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let db = DB::open_default(path)?;
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+
+        let db = DB::open(&opts, path)?;
         Ok(RocksDb { db })
     }
 }
 
 impl KeyValueStore for RocksDb {
-    type OwnedValue = DBVector;
-
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
         self.db.put(key, value)?;
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> Result<Option<Self::OwnedValue>> {
+    fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let value = self.db.get(key)?;
-        Ok(value)
+        Ok(value.map(|x| x.to_vec()))
     }
 
     fn delete(&mut self, key: &[u8]) -> Result<()> {

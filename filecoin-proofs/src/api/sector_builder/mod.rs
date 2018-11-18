@@ -13,7 +13,6 @@ use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
-use api::sector_builder::kv_store::KeyValueStore;
 
 pub mod errors;
 mod helpers;
@@ -80,17 +79,17 @@ impl SectorBuilder {
         // Build the SectorBuilder's initial state. If available, we
         // reconstitute this stage from persisted metadata. If not, we create it
         // from scratch.
-        let state = Arc::new(
-            load_sector_builder_state(kv_store, prover_id)?.unwrap_or_else(|| SectorBuilderState {
-                prover_id,
-                staged: Mutex::new(StagedState {
-                    sector_id_nonce: last_committed_sector_id,
-                    sectors: Default::default(),
-                    sectors_accepting_data: Default::default(),
-                }),
-                sealed: Default::default(),
+        let loaded = load_sector_builder_state(kv_store, prover_id)?;
+
+        let state = Arc::new(loaded.unwrap_or_else(|| SectorBuilderState {
+            prover_id,
+            staged: Mutex::new(StagedState {
+                sector_id_nonce: last_committed_sector_id,
+                sectors: Default::default(),
+                sectors_accepting_data: Default::default(),
             }),
-        );
+            sealed: Default::default(),
+        }));
 
         // Initialize a SectorStore and wrap it in an Arc so we can access it
         // from multiple threads. Our implementation assumes that the

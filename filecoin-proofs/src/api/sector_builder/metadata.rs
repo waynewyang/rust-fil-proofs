@@ -2,8 +2,10 @@ use api::sector_builder::SectorId;
 use byteorder::LittleEndian;
 use byteorder::WriteBytesExt;
 use error;
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct StagedSectorMetadata {
     pub sector_id: SectorId,
     pub sector_access: String,
@@ -11,7 +13,7 @@ pub struct StagedSectorMetadata {
     pub sealing_error: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SealedSectorMetadata {
     pub sector_id: SectorId,
     pub sector_access: String,
@@ -19,6 +21,8 @@ pub struct SealedSectorMetadata {
     pub comm_r_star: [u8; 32],
     pub comm_r: [u8; 32],
     pub comm_d: [u8; 32],
+
+    #[serde(with = "BigArray")]
     pub snark_proof: [u8; 384],
 }
 
@@ -36,7 +40,7 @@ impl Default for SealedSectorMetadata {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PieceMetadata {
     pub piece_key: String,
     pub num_bytes: u64,
