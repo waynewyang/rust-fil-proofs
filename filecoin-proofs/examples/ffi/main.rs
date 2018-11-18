@@ -114,14 +114,9 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
         assert_eq!(124, (*resp).sector_id);
     }
 
-    // create a new sector builder using same prover id, which should
-    // initialize with metadata persisted by previous sector builder
-    let (sector_builder_b, _) = create_sector_builder([0; 31], 123);
-    defer!(destroy_sector_builder(sector_builder_b));
-
     // add second piece, which fits into existing staged sector
     {
-        let (_, _, resp) = create_and_add_piece(sector_builder_b, 50);
+        let (_, _, resp) = create_and_add_piece(sector_builder_a, 50);
         defer!(destroy_add_piece_response(resp));
 
         if (*resp).status_code != 0 {
@@ -133,7 +128,7 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
 
     // add third piece, which won't fit into existing staging sector
     {
-        let (_, _, resp) = create_and_add_piece(sector_builder_b, 100);
+        let (_, _, resp) = create_and_add_piece(sector_builder_a, 100);
         defer!(destroy_add_piece_response(resp));
 
         if (*resp).status_code != 0 {
@@ -143,6 +138,11 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
         // note that the sector id changed here
         assert_eq!(125, (*resp).sector_id);
     }
+
+    // create a new sector builder using same prover id, which should
+    // initialize with metadata persisted by previous sector builder
+    let (sector_builder_b, _) = create_sector_builder([0; 31], 123);
+    defer!(destroy_sector_builder(sector_builder_b));
 
     // add fourth piece, where size(piece) == max (will trigger sealing)
     let (bytes_in, piece_key) = {
