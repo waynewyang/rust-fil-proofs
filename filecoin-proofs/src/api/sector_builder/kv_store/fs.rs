@@ -1,6 +1,5 @@
 use api::sector_builder::kv_store::KeyValueStore;
 use error::Result;
-use percent_encoding::{percent_encode, DEFAULT_ENCODE_SET};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::{self, File, OpenOptions};
 use std::hash::Hasher;
@@ -24,8 +23,7 @@ impl FileSystemKvs {
     }
 
     fn key_to_path(&self, key: &[u8]) -> PathBuf {
-        let name = percent_encode(key, DEFAULT_ENCODE_SET).to_string();
-
+        let name = key.to_hex();
         let mut hasher = DefaultHasher::new();
         hasher.write(name.as_bytes());
 
