@@ -1,4 +1,3 @@
-
 version: 2
 jobs:
   cargo_fetch:
@@ -6,6 +5,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - run:
@@ -18,7 +19,6 @@ jobs:
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add rustfmt-preview
       - run: rustup component add clippy-preview
-      - run: rustup component add rustfmt-preview --toolchain stable
       - run: cargo update
       - run: cargo fetch
       - persist_to_workspace:
@@ -35,6 +35,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -68,6 +70,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -87,6 +91,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -108,6 +114,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -128,6 +136,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -148,6 +158,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
@@ -164,6 +176,8 @@ jobs:
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
+    environment:
+      ROCKSDB_LIB_DIR: /usr/lib
     steps:
       - checkout
       - attach_workspace:
