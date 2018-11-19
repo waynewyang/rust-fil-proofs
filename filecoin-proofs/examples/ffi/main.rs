@@ -21,6 +21,7 @@ use std::sync::atomic::AtomicPtr;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use tempfile::TempDir;
 
 ///////////////////////////////////////////////////////////////////////////////
 // SectorBuilder lifecycle test
@@ -54,12 +55,12 @@ unsafe fn create_and_add_piece(
 }
 
 unsafe fn create_sector_builder(
+    metadata_dir: &TempDir,
+    staging_dir: &TempDir,
+    sealed_dir: &TempDir,
     prover_id: [u8; 31],
     last_committed_sector_id: u64,
 ) -> (*mut SectorBuilder, u64) {
-    let metadata_dir = tempfile::tempdir().unwrap();
-    let staging_dir = tempfile::tempdir().unwrap();
-    let sealed_dir = tempfile::tempdir().unwrap();
     let mut prover_id: [u8; 31] = prover_id;
     let sector_store_config: ConfiguredStore = ConfiguredStore_ProofTest;
 
@@ -90,8 +91,11 @@ unsafe fn create_sector_builder(
 }
 
 unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
-    let (sector_builder_a, max_bytes) = create_sector_builder([0; 31], 123);
-    defer!(destroy_sector_builder(sector_builder_a));
+    let metadata_dir = tempfile::tempdir().unwrap();
+    let staging_dir = tempfile::tempdir().unwrap();
+    let sealed_dir = tempfile::tempdir().unwrap();
+
+    let (sector_builder_a, max_bytes) = create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
 
     // TODO: Replace the hard-coded byte amounts with values computed
     // from whatever was retrieved from the SectorBuilder.
@@ -139,9 +143,12 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
         assert_eq!(125, (*resp).sector_id);
     }
 
+    // drop the first sector builder, relinquishing lock on rocksdb directory
+    destroy_sector_builder(sector_builder_a);
+
     // create a new sector builder using same prover id, which should
     // initialize with metadata persisted by previous sector builder
-    let (sector_builder_b, _) = create_sector_builder([0; 31], 123);
+    let (sector_builder_b, _) = create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
     defer!(destroy_sector_builder(sector_builder_b));
 
     // add fourth piece, where size(piece) == max (will trigger sealing)
