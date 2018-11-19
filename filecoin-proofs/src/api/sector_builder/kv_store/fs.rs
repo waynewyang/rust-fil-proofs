@@ -15,6 +15,7 @@ pub struct FileSystemKvs {
 }
 
 impl FileSystemKvs {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Result<Self> {
         fs::create_dir_all(&root_dir)?;
 
