@@ -48,6 +48,7 @@ pub fn make_snapshot(
 #[cfg(test)]
 mod tests {
     use api::sector_builder::helpers::snapshots::*;
+    use api::sector_builder::kv_store::rocksdb::RocksDb;
     use api::sector_builder::metadata::StagedSectorMetadata;
     use api::sector_builder::state::SealedState;
     use api::sector_builder::state::StagedState;
@@ -56,7 +57,6 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use api::sector_builder::kv_store::rocksdb::RocksDb;
 
     #[test]
     fn test_alpha() {
