@@ -2,7 +2,7 @@
 version: 2
 jobs:
   cargo_fetch:
-    resource_class: large
+    resource_class: xlarge
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
