@@ -7,15 +7,14 @@ use api::sector_builder::metadata::SealedSectorMetadata;
 use api::sector_builder::state::SectorBuilderState;
 use api::sector_builder::SectorId;
 use api::sector_builder::WrappedKeyValueStore;
+use api::sector_builder::WrappedSectorStore;
 use error;
-use sector_base::api::disk_backed_storage::ConcreteSectorStore;
-use sector_base::api::sector_store::SectorStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 pub fn seal(
     kv_store: &Arc<WrappedKeyValueStore>,
-    sector_store: &Arc<ConcreteSectorStore>,
+    sector_store: &Arc<WrappedSectorStore>,
     state: &Arc<SectorBuilderState>,
     sector_id: SectorId,
 ) -> error::Result<SealedSectorMetadata> {
@@ -40,7 +39,7 @@ pub fn seal(
 
 fn seal_aux(
     kv_store: &Arc<WrappedKeyValueStore>,
-    sector_store: &Arc<ConcreteSectorStore>,
+    sector_store: &Arc<WrappedSectorStore>,
     state: &Arc<SectorBuilderState>,
     sector_id: SectorId,
 ) -> error::Result<SealedSectorMetadata> {
@@ -61,6 +60,7 @@ fn seal_aux(
 
     // Provision a new sealed sector access through the manager.
     let sealed_sector_access = sector_store
+        .inner
         .manager()
         .new_sealed_sector_access()
         .map_err(failure::Error::from)?;
@@ -68,7 +68,7 @@ fn seal_aux(
     // Run the FPS seal operation. This call will block for a long time, so make
     // sure you're not holding any locks.
     let (comm_r, comm_d, comm_r_star, snark_proof) = seal_internal(
-        &(**sector_store),
+        &(*sector_store.inner),
         &PathBuf::from(to_be_sealed.sector_access.clone()),
         &PathBuf::from(sealed_sector_access.clone()),
         state.prover_id,

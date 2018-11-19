@@ -3,8 +3,8 @@ use api::sector_builder::metadata::SealedSectorMetadata;
 use api::sector_builder::state::SectorBuilderState;
 use api::sector_builder::SectorId;
 use api::sector_builder::WrappedKeyValueStore;
+use api::sector_builder::WrappedSectorStore;
 use error::Result;
-use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -25,7 +25,7 @@ impl Worker {
         id: usize,
         task_rx: Arc<Mutex<mpsc::Receiver<Task>>>,
         kv_store: Arc<WrappedKeyValueStore>,
-        sector_store: Arc<ConcreteSectorStore>,
+        sector_store: Arc<WrappedSectorStore>,
         sector_builder_state: Arc<SectorBuilderState>,
     ) -> Worker {
         let thread = thread::spawn(move || loop {

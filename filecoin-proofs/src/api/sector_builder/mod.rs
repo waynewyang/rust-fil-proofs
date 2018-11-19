@@ -10,7 +10,6 @@ use api::sector_builder::state::*;
 use api::sector_builder::worker::*;
 use error::Result;
 use sector_base::api::disk_backed_storage::new_sector_store;
-use sector_base::api::disk_backed_storage::ConcreteSectorStore;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
@@ -41,7 +40,7 @@ pub struct SectorBuilder {
     // value for the internal::seal function. In the future (soon), we need to
     // figure out if the internal::seal API needs to change or if there's some
     // other way to allow thread-safe access to a shared SectorStore.
-    sector_store: Arc<ConcreteSectorStore>,
+    sector_store: Arc<WrappedSectorStore>,
 
     // A reference-counted struct which holds all SectorBuilder state. Mutable
     // fields are Mutex-guarded.
@@ -62,6 +61,13 @@ pub struct SectorBuilder {
     // freshly-provisioned staged sector.
     max_user_bytes_per_staged_sector: u64,
 }
+
+pub struct WrappedSectorStore {
+    inner: Box<SectorStore>,
+}
+
+unsafe impl Sync for WrappedSectorStore {}
+unsafe impl Send for WrappedSectorStore {}
 
 pub struct WrappedKeyValueStore {
     inner: Box<KeyValueStore>,
@@ -111,11 +117,13 @@ impl SectorBuilder {
         // Initialize a SectorStore and wrap it in an Arc so we can access it
         // from multiple threads. Our implementation assumes that the
         // SectorStore is safe for concurrent access.
-        let sector_store: Arc<ConcreteSectorStore> = Arc::new(new_sector_store(
-            sector_store_config,
-            sealed_sector_dir.into(),
-            staged_sector_dir.into(),
-        ));
+        let sector_store = Arc::new(WrappedSectorStore {
+            inner: Box::new(new_sector_store(
+                sector_store_config,
+                sealed_sector_dir.into(),
+                staged_sector_dir.into(),
+            )),
+        });
 
         // Configure seal queue workers and channels.
         let (seal_tx, seal_workers) = {
@@ -139,6 +147,7 @@ impl SectorBuilder {
 
         let max_user_bytes_per_staged_sector = sector_store
             .clone()
+            .inner
             .config()
             .max_unsealed_bytes_per_sector();
 
