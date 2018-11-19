@@ -47,7 +47,7 @@ pub fn make_snapshot(
 
 #[cfg(test)]
 mod tests {
-    use api::sector_builder::helpers::snapshot::*;
+    use api::sector_builder::helpers::snapshots::*;
     use api::sector_builder::kv_store::rocksdb::RocksDb;
     use api::sector_builder::metadata::StagedSectorMetadata;
     use api::sector_builder::state::*;

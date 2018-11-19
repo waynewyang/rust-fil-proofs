@@ -1,7 +1,7 @@
 use api::internal::seal as seal_internal;
 use api::sector_builder::errors::err_unrecov;
-use api::sector_builder::helpers::snapshot::make_snapshot;
-use api::sector_builder::helpers::snapshot::persist_snapshot;
+use api::sector_builder::helpers::snapshots::make_snapshot;
+use api::sector_builder::helpers::snapshots::persist_snapshot;
 use api::sector_builder::metadata::sector_id_as_bytes;
 use api::sector_builder::metadata::SealedSectorMetadata;
 use api::sector_builder::state::SectorBuilderState;
