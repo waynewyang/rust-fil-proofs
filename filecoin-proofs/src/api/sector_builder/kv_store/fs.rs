@@ -23,9 +23,9 @@ impl FileSystemKvs {
     }
 
     fn key_to_path(&self, key: &[u8]) -> PathBuf {
-        let name = key.to_hex();
+        let name = format!("{:x?}", key);
         let mut hasher = DefaultHasher::new();
-        hasher.write(name.as_bytes());
+        hasher.write(key);
 
         let file = format!("{:04x}/{}", hasher.finish() as u16, name);
 
