@@ -99,10 +99,8 @@ fn seal_aux(
 
         // Snapshot the SectorBuilder's state. As the state includes both sealed
         // and staged state-maps, this function requires both locks.
-        let _ = persist_snapshot(
-            kv_store,
-            make_snapshot(&state.prover_id, &staged_state, &sealed_state),
-        )?;
+        let snapshot = make_snapshot(&state.prover_id, &staged_state, &sealed_state);
+        persist_snapshot(kv_store, &snapshot)?;
     }
 
     Ok(newly_sealed_sector)

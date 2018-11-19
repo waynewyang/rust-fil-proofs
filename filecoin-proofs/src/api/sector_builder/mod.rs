@@ -202,7 +202,7 @@ impl SectorBuilder {
         // and staged state-maps, making a snapshot requires both locks.
         let sealed_state = self.state.sealed.lock().unwrap();
         let snapshot = make_snapshot(&self.state.prover_id, &staged_state, &sealed_state);
-        let _ = persist_snapshot(&self.kv_store, snapshot)?;
+        persist_snapshot(&self.kv_store, &snapshot)?;
 
         Ok(destination_sector_id)
     }

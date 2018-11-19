@@ -3,14 +3,14 @@ use api::sector_builder::SectorId;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug, PartialEq)]
 pub struct StagedState {
     pub sector_id_nonce: SectorId,
     pub sectors: HashMap<SectorId, StagedSectorMetadata>,
     pub sectors_accepting_data: HashSet<SectorId>,
 }
 
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug, PartialEq)]
 pub struct SealedState {
     pub sectors: HashMap<SectorId, SealedSectorMetadata>,
 }
@@ -22,7 +22,7 @@ pub struct SectorBuilderState {
     pub sealed: Mutex<SealedState>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct StateSnapshot {
     pub prover_id: [u8; 31],
     pub staged: StagedState,

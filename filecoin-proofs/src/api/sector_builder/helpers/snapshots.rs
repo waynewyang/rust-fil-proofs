@@ -20,9 +20,9 @@ pub fn load_snapshot(
 
 pub fn persist_snapshot(
     kv_store: &Arc<WrappedKeyValueStore>,
-    snapshot: StateSnapshot,
+    snapshot: &StateSnapshot,
 ) -> Result<()> {
-    let serialized = serde_cbor::to_vec(&snapshot)?;
+    let serialized = serde_cbor::to_vec(snapshot)?;
     kv_store.inner.put(&snapshot.prover_id[..], &serialized)?;
     Ok(())
 }
@@ -33,9 +33,9 @@ pub fn make_snapshot(
     sealed_state: &MutexGuard<SealedState>,
 ) -> StateSnapshot {
     StateSnapshot {
-        prover_id: prover_id.clone(),
+        prover_id: *prover_id,
         staged: StagedState {
-            sector_id_nonce: staged_state.sector_id_nonce.clone(),
+            sector_id_nonce: staged_state.sector_id_nonce,
             sectors: staged_state.sectors.clone(),
             sectors_accepting_data: staged_state.sectors_accepting_data.clone(),
         },
@@ -50,7 +50,8 @@ mod tests {
     use api::sector_builder::helpers::snapshots::*;
     use api::sector_builder::kv_store::rocksdb::RocksDb;
     use api::sector_builder::metadata::StagedSectorMetadata;
-    use api::sector_builder::state::*;
+    use api::sector_builder::state::SealedState;
+    use api::sector_builder::state::StagedState;
     use api::sector_builder::WrappedKeyValueStore;
     use std::collections::HashMap;
     use std::collections::HashSet;
@@ -91,11 +92,10 @@ mod tests {
             &sealed_state.lock().unwrap(),
         );
 
-        let _ = persist_snapshot(&kv_store, to_persist).unwrap();
+        let _ = persist_snapshot(&kv_store, &to_persist).unwrap();
 
         let loaded = load_snapshot(&kv_store, &prover_id).unwrap().unwrap();
 
-        // TODO: Determine how to check equality of two snapshots directly.
-        assert_eq!(&prover_id, &loaded.prover_id);
+        assert_eq!(to_persist, loaded);
     }
 }

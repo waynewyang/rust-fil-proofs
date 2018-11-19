@@ -95,7 +95,8 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
     let staging_dir = tempfile::tempdir().unwrap();
     let sealed_dir = tempfile::tempdir().unwrap();
 
-    let (sector_builder_a, max_bytes) = create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
+    let (sector_builder_a, max_bytes) =
+        create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
 
     // TODO: Replace the hard-coded byte amounts with values computed
     // from whatever was retrieved from the SectorBuilder.
@@ -148,7 +149,8 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
 
     // create a new sector builder using same prover id, which should
     // initialize with metadata persisted by previous sector builder
-    let (sector_builder_b, _) = create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
+    let (sector_builder_b, _) =
+        create_sector_builder(&metadata_dir, &staging_dir, &sealed_dir, [0; 31], 123);
     defer!(destroy_sector_builder(sector_builder_b));
 
     // add fourth piece, where size(piece) == max (will trigger sealing)
