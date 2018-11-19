@@ -16,7 +16,7 @@ mod tests {
     fn test_alpha() {
         let metadata_dir = tempfile::tempdir().unwrap();
 
-        let db = FileSystemKvs::new(metadata_dir).unwrap();
+        let db = FileSystemKvs::initialize(metadata_dir).unwrap();
 
         let k_a = b"key-xx";
         let k_b = b"key-yy";

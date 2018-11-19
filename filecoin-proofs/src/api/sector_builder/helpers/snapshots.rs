@@ -63,7 +63,7 @@ mod tests {
         let metadata_dir = tempfile::tempdir().unwrap();
 
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(FileSystemKvs::new(metadata_dir).unwrap()),
+            inner: Box::new(FileSystemKvs::initialize(metadata_dir).unwrap()),
         });
 
         let prover_id = [0; 31];
