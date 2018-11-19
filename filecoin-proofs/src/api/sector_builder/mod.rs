@@ -3,7 +3,6 @@ use api::sector_builder::helpers::get_seal_status::*;
 use api::sector_builder::helpers::get_sectors_ready_for_sealing::*;
 use api::sector_builder::helpers::read_piece_from_sealed_sector::read_piece_from_sealed_sector;
 use api::sector_builder::helpers::snapshots::{load_snapshot, make_snapshot, persist_snapshot};
-use api::sector_builder::kv_store::fs::FileSystemKvs;
 use api::sector_builder::kv_store::KeyValueStore;
 use api::sector_builder::metadata::*;
 use api::sector_builder::state::*;
@@ -13,6 +12,7 @@ use sector_base::api::disk_backed_storage::new_sector_store;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
+use api::sector_builder::kv_store::rocksdb::RocksDb;
 
 pub mod errors;
 mod helpers;
@@ -93,7 +93,7 @@ impl SectorBuilder {
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(FileSystemKvs::initialize(metadata_dir.into())?),
+            inner: Box::new(RocksDb::initialize(metadata_dir.into())?),
         });
 
         // Build the SectorBuilder's initial state. If available, we

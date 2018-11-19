@@ -48,7 +48,6 @@ pub fn make_snapshot(
 #[cfg(test)]
 mod tests {
     use api::sector_builder::helpers::snapshots::*;
-    use api::sector_builder::kv_store::fs::FileSystemKvs;
     use api::sector_builder::metadata::StagedSectorMetadata;
     use api::sector_builder::state::SealedState;
     use api::sector_builder::state::StagedState;
@@ -57,13 +56,14 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use api::sector_builder::kv_store::rocksdb::RocksDb;
 
     #[test]
     fn test_alpha() {
         let metadata_dir = tempfile::tempdir().unwrap();
 
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(FileSystemKvs::initialize(metadata_dir).unwrap()),
+            inner: Box::new(RocksDb::initialize(metadata_dir).unwrap()),
         });
 
         let prover_id = [0; 31];
