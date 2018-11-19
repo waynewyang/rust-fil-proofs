@@ -18,11 +18,11 @@ extern crate tempfile;
 extern crate failure;
 extern crate byteorder;
 extern crate itertools;
-extern crate rocksdb;
 extern crate serde;
 extern crate serde_cbor;
 #[macro_use]
 extern crate serde_derive;
+extern crate percent_encoding;
 
 pub mod api;
 pub mod error;

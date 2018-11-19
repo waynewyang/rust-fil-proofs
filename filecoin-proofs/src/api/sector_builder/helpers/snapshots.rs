@@ -48,7 +48,7 @@ pub fn make_snapshot(
 #[cfg(test)]
 mod tests {
     use api::sector_builder::helpers::snapshots::*;
-    use api::sector_builder::kv_store::rocksdb::RocksDb;
+    use api::sector_builder::kv_store::fs::FileSystemKvs;
     use api::sector_builder::metadata::StagedSectorMetadata;
     use api::sector_builder::state::SealedState;
     use api::sector_builder::state::StagedState;
@@ -63,7 +63,7 @@ mod tests {
         let metadata_dir = tempfile::tempdir().unwrap();
 
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(RocksDb::new(metadata_dir).unwrap()),
+            inner: Box::new(FileSystemKvs::new(metadata_dir).unwrap()),
         });
 
         let prover_id = [0; 31];

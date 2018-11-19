@@ -144,7 +144,7 @@ unsafe fn sector_builder_lifecycle() -> Result<(), Box<Error>> {
         assert_eq!(125, (*resp).sector_id);
     }
 
-    // drop the first sector builder, relinquishing lock on rocksdb directory
+    // drop the first sector builder, relinquishing any locks on persistence
     destroy_sector_builder(sector_builder_a);
 
     // create a new sector builder using same prover id, which should
