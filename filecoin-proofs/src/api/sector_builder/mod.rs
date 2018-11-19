@@ -94,8 +94,8 @@ impl SectorBuilder {
         // reconstitute this stage from persisted metadata. If not, we create it
         // from scratch.
         let state = {
-            let _ = load_snapshot(&kv_store, &prover_id)?;
-            let loaded = None;
+            let loaded = load_snapshot(&kv_store, &prover_id)?;
+            let loaded = loaded.map(|x| x.into());
 
             Arc::new(loaded.unwrap_or_else(|| SectorBuilderState {
                 prover_id,
