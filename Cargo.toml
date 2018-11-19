@@ -11,9 +11,9 @@ sector-base = { path = "./sector-base" }
 storage-backend = { path = "./storage-backend" }
 
 clap = "2"
-serde = "1"
-serde_derive = "1"
-serde_json = "1"
+#serde = "1"
+#serde_derive = "1"
+#serde_json = "1"
 toml = "0.4"
 failure = "0.1"
 permutate = "0.3"
