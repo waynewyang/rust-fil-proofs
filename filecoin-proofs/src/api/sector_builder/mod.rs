@@ -87,7 +87,7 @@ impl SectorBuilder {
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
         let kv_store = Arc::new(WrappedKeyValueStore {
-            inner: Box::new(FileSystemKvs::new(metadata_dir.into())?),
+            inner: Box::new(FileSystemKvs::initialize(metadata_dir.into())?),
         });
 
         // Build the SectorBuilder's initial state. If available, we

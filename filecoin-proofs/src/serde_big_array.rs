@@ -1,3 +1,5 @@
+#![allow(needless_range_loop)]
+
 use serde::de::{Deserialize, Deserializer, Error, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeTuple, Serializer};
 use std::fmt;
@@ -51,8 +53,6 @@ macro_rules! big_array {
                             where A: SeqAccess<'de>
                         {
                             let mut arr = [T::default(); $len];
-
-                            #[allow(clippy::needless_range_loop)]
                             for i in 0..$len {
                                 arr[i] = seq.next_element()?
                                     .ok_or_else(|| Error::invalid_length(i, &self))?;
