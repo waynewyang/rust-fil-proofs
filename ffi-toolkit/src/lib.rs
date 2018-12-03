@@ -5,8 +5,14 @@ use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 
 // produce a C string from a Rust string
-pub fn rust_str_to_c_str<T: Into<String>>(s: T) -> *const libc::c_char {
+pub fn rust_str_to_c_str<T: Into<String>>(s: T) -> *mut libc::c_char {
     CString::new(s.into()).unwrap().into_raw()
+}
+
+pub fn free_c_str(ptr: *mut libc::c_char) {
+    unsafe {
+        CString::from_raw(ptr);
+    }
 }
 
 // return a forgotten raw pointer to something of type T
