@@ -26,12 +26,14 @@ pub enum SealerInput {
 
 impl SealerWorker {
     pub fn start(
+        logger: Arc<slog::Logger>,
         id: usize,
         seal_task_rx: Arc<Mutex<mpsc::Receiver<SealerInput>>>,
         sector_store: Arc<WrappedSectorStore>,
         prover_id: [u8; 31],
     ) -> SealerWorker {
         let thread = thread::spawn(move || loop {
+            info!(logger, "worker thread started");
             // Acquire a lock on the rx end of the channel, get a task,
             // relinquish the lock and return the task. The receiver is mutexed
             // for coordinating reads across multiple worker-threads.

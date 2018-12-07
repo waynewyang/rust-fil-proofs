@@ -29,7 +29,12 @@ extern crate serde_cbor;
 #[macro_use]
 extern crate serde_derive;
 extern crate blake2;
+#[macro_use]
+extern crate slog;
+extern crate slog_term;
+extern crate slog_async;
 
 pub mod api;
 pub mod error;
 pub mod serde_big_array;
+pub mod logging;

@@ -45,6 +45,7 @@ pub enum Request {
 
 impl Scheduler {
     pub fn start_with_metadata(
+        logger: Arc<slog::Logger>,
         scheduler_input_rx: mpsc::Receiver<Request>,
         scheduler_input_tx: mpsc::SyncSender<Request>,
         sealer_input_tx: mpsc::Sender<SealerInput>,
@@ -55,6 +56,7 @@ impl Scheduler {
         prover_id: [u8; 31],
     ) -> Scheduler {
         let thread = thread::spawn(move || {
+            info!(logger, "scheduler thread started");
             // Build the scheduler's initial state. If available, we
             // reconstitute this state from persisted metadata. If not, we
             // create it from scratch.
@@ -88,6 +90,7 @@ impl Scheduler {
 
             loop {
                 let task = scheduler_input_rx.recv().expect(FATAL_NORECV);
+                info!(logger, "task received");
 
                 // Dispatch to the appropriate task-handler.
                 match task {

@@ -9,6 +9,7 @@ use sector_base::api::disk_backed_storage::new_sector_store;
 use sector_base::api::disk_backed_storage::SBConfiguredStore;
 use sector_base::api::sector_store::SectorStore;
 use std::sync::{mpsc, Arc, Mutex};
+use logging::create_async_logger;
 
 pub mod errors;
 mod helpers;
@@ -52,6 +53,8 @@ impl SectorBuilder {
         staged_sector_dir: S,
         max_num_staged_sectors: u8,
     ) -> Result<SectorBuilder> {
+        let logger = Arc::new(create_async_logger());
+
         let kv_store = Arc::new(WrappedKeyValueStore {
             inner: Box::new(FileSystemKvs::initialize(metadata_dir.into())?),
         });
@@ -76,7 +79,7 @@ impl SectorBuilder {
             let rx = Arc::new(Mutex::new(rx));
 
             let workers = (0..NUM_SEAL_WORKERS)
-                .map(|n| SealerWorker::start(n, rx.clone(), sector_store.clone(), prover_id))
+                .map(|n| SealerWorker::start(logger.clone(), n, rx.clone(), sector_store.clone(), prover_id))
                 .collect();
 
             (tx, workers)
@@ -84,6 +87,7 @@ impl SectorBuilder {
 
         // Configure main worker.
         let main_worker = Scheduler::start_with_metadata(
+            logger.clone(),
             main_rx,
             main_tx.clone(),
             seal_tx.clone(),
