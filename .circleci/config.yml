@@ -46,14 +46,14 @@ jobs:
           name: run regression tests (examples) against FFI-exposed filecoin-proofs API w/leak sanitizier
           command: RUSTFLAGS="-Z sanitizer=leak" cargo run --release --package filecoin-proofs --example ffi --target x86_64-unknown-linux-gnu
       - run:
+          name: run FFI example with data race sanitizer
+          command: RUSTFLAGS="-Z sanitizer=thread" cargo run --release --package filecoin-proofs --example ffi --target x86_64-unknown-linux-gnu
+      - run:
           name: run FFI example with memory sanitizer
           command: RUSTFLAGS="-Z sanitizer=memory" cargo run --release --package filecoin-proofs --example ffi --target x86_64-unknown-linux-gnu
       - run:
           name: run FFI example with address sanitizer
           command: RUSTFLAGS="-Z sanitizer=address" cargo run --release --package filecoin-proofs --example ffi --target x86_64-unknown-linux-gnu
-      - run:
-          name: run FFI example with data race sanitizer
-          command: RUSTFLAGS="-Z sanitizer=thread" cargo run --release --package filecoin-proofs --example ffi --target x86_64-unknown-linux-gnu
       - run:
           name: Test (stable)
           command: cargo +stable test --verbose --frozen --all
