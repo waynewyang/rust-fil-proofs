@@ -159,6 +159,7 @@ pub fn fetch_parameter_file(parameter_map: &ParameterMap, parameter_id: &str) ->
             Err(_) => Err(err_msg(ERROR_CURL_COMMAND)),
             Ok(output) => {
                 if !output.status.success() {
+                    println!("{}", String::from_utf8_lossy(&output.stderr));
                     Err(err_msg(ERROR_CURL_FETCH))
                 } else {
                     let is_valid = validate_parameter_file(&parameter_map, parameter_id)?;
