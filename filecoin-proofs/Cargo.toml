@@ -38,7 +38,7 @@ slog = { version = "2.4.1", features = ["max_level_trace", "release_max_level_tr
 regex = "1"
 
 [dev-dependencies]
-gperftools = { git = "https://github.com/dignifiedquire/rust-gperftools" }
+gperftools = { git = "https://github.com/dignifiedquire/rust-gperftools", tag = "v0.2.0"}
 scopeguard = "0.3.3"
 
 [dependencies.pairing]
@@ -52,5 +52,6 @@ cbindgen = "0.6.8"
 [features]
 default = []
 profile = []
+heap-profile = []
 simd = ["storage-proofs/simd"]
 asm = ["storage-proofs/asm"]

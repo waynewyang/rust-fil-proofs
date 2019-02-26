@@ -15,6 +15,8 @@ extern crate filecoin_proofs;
 extern crate storage_proofs;
 
 use clap::{App, Arg};
+#[cfg(feature = "heap-profile")]
+use gperftools::heap_profiler::HEAP_PROFILER;
 #[cfg(feature = "profile")]
 use gperftools::profiler::PROFILER;
 use memmap::MmapMut;
@@ -43,6 +45,9 @@ use storage_proofs::zigzag_drgporep::*;
 
 use filecoin_proofs::FCP_LOG;
 
+// We can only one of the profilers at a time, either CPU (`profile`)
+// or memory (`heap-profile`), duplicating the function so they won't
+// be built together.
 #[cfg(feature = "profile")]
 #[inline(always)]
 fn start_profile(stage: &str) {
@@ -53,7 +58,17 @@ fn start_profile(stage: &str) {
         .unwrap();
 }
 
-#[cfg(not(feature = "profile"))]
+#[cfg(feature = "heap-profile")]
+#[inline(always)]
+fn start_profile(stage: &str) {
+    HEAP_PROFILER
+        .lock()
+        .unwrap()
+        .start(format!("./{}.heap-profile", stage))
+        .unwrap();
+}
+
+#[cfg(not(any(feature = "profile", feature = "heap-profile")))]
 #[inline(always)]
 fn start_profile(_stage: &str) {}
 
@@ -63,7 +78,13 @@ fn stop_profile() {
     PROFILER.lock().unwrap().stop().unwrap();
 }
 
-#[cfg(not(feature = "profile"))]
+#[cfg(feature = "heap-profile")]
+#[inline(always)]
+fn stop_profile() {
+    HEAP_PROFILER.lock().unwrap().stop().unwrap();
+}
+
+#[cfg(not(any(feature = "profile", feature = "heap-profile")))]
 #[inline(always)]
 fn stop_profile() {}
 
