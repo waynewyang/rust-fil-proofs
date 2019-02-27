@@ -29,8 +29,8 @@ pub struct VDFPoStCircuit<'a, E: JubjubEngine> {
     pub vdf_sloth_rounds: usize,
 
     // PoRCs
-    pub challenges_vec: Vec<Vec<usize>>,
-    pub challenged_sectors_vec: Vec<Vec<usize>>,
+    pub challenges_vec: Vec<Vec<Option<usize>>>,
+    pub challenged_sectors_vec: Vec<Vec<Option<usize>>>,
     pub challenged_leafs_vec: Vec<Vec<Option<E::Fr>>>,
     pub commitments_vec: Vec<Vec<Option<E::Fr>>>,
     pub root_commitment: Option<E::Fr>,
@@ -133,8 +133,16 @@ where
 
         VDFPoStCircuit {
             params: engine_params,
-            challenges_vec: vanilla_proof.challenges.clone(),
-            challenged_sectors_vec: vanilla_proof.challenged_sectors.clone(),
+            challenges_vec: vanilla_proof
+                .challenges
+                .iter()
+                .map(|v| v.iter().map(|&s| Some(s)).collect())
+                .collect(),
+            challenged_sectors_vec: vanilla_proof
+                .challenged_sectors
+                .iter()
+                .map(|v| v.iter().map(|&s| Some(s)).collect())
+                .collect(),
             challenge_seed: Some(pub_in.challenge_seed.into()),
             vdf_key: Some(V::key(&pub_params.pub_params_vdf).into()),
             vdf_ys,
@@ -170,9 +178,9 @@ where
             let mut epoch_paths_vec = Vec::new();
 
             for _ in 0..pub_params.challenge_count {
-                epoch_challenges.push(rng.gen());
+                epoch_challenges.push(Some(rng.gen()));
                 epoch_challenged_leafs.push(Some(Fr::zero()));
-                epoch_challenged_sectors.push(0);
+                epoch_challenged_sectors.push(Some(0));
                 epoch_commitments.push(Some(rng.gen()));
                 let path = (0..=pub_params.challenge_bits)
                     .map(|_| Some((rng.gen(), true)))
@@ -316,7 +324,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for VDFPoStCircuit<'a, E> {
                 params,
                 challenges_vec[i]
                     .iter()
-                    .map(|c| Some(u32_into_fr::<E>(*c as u32)))
+                    .map(|c| c.map(|c| u32_into_fr::<E>(c as u32)))
                     .collect(),
                 challenged_sectors_vec[i].clone(),
                 challenged_leafs.to_vec(),
@@ -355,8 +363,8 @@ impl<'a, E: JubjubEngine> VDFPoStCircuit<'a, E> {
         vdf_ys: Vec<Option<E::Fr>>,
         vdf_xs: Vec<Option<E::Fr>>,
         vdf_sloth_rounds: usize,
-        challenges_vec: Vec<Vec<usize>>,
-        challenged_sectors_vec: Vec<Vec<usize>>,
+        challenges_vec: Vec<Vec<Option<usize>>>,
+        challenged_sectors_vec: Vec<Vec<Option<usize>>>,
         challenged_leafs_vec: Vec<Vec<Option<E::Fr>>>,
         root_commitment: Option<E::Fr>,
         commitments_vec: Vec<Vec<Option<E::Fr>>>,
@@ -510,8 +518,16 @@ mod tests {
 
         let instance = VDFPoStCircuit {
             params,
-            challenges_vec: proof.challenges,
-            challenged_sectors_vec: proof.challenged_sectors,
+            challenges_vec: proof
+                .challenges
+                .iter()
+                .map(|v| v.iter().map(|&s| Some(s)).collect())
+                .collect(),
+            challenged_sectors_vec: proof
+                .challenged_sectors
+                .iter()
+                .map(|v| v.iter().map(|&s| Some(s)).collect())
+                .collect(),
             challenge_seed: Some(pub_inputs.challenge_seed.into()),
             vdf_key: Some(pub_params.pub_params_vdf.key.into()),
             vdf_xs,

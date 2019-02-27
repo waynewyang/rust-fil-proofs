@@ -176,6 +176,7 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
         let pub_params_porep = porc::PublicParams {
             leaves: pub_params.leaves,
             sectors_count: pub_params.sectors_count,
+            challenges_count: pub_params.challenge_count,
         };
 
         let mut porep_proofs = Vec::with_capacity(post_epochs);
@@ -279,6 +280,7 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
                 let pub_params_porep = porc::PublicParams {
                     leaves: pub_params.leaves,
                     sectors_count: pub_params.sectors_count,
+                    challenges_count: pub_params.challenge_count,
                 };
 
                 let pub_inputs_porep = porc::PublicInputs {
