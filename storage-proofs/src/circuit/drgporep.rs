@@ -294,10 +294,38 @@ where
     }
 
     fn blank_circuit(
-        _public_params: &<DrgPoRep<'a, H, G> as ProofScheme<'a>>::PublicParams,
-        _engine_params: &'a <Bls12 as JubjubEngine>::Params,
+        public_params: &<DrgPoRep<'a, H, G> as ProofScheme<'a>>::PublicParams,
+        params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
-        unimplemented!("");
+        let nodes = public_params.graph.size();
+        let depth = public_params.graph.merkle_tree_depth() as usize;
+
+        let replica_nodes = vec![None; nodes];
+        let replica_nodes_paths = vec![vec![None; depth]; nodes];
+
+        let replica_root = Root::Val(None);
+        let replica_parents = vec![vec![None; depth]; nodes];
+        let replica_parents_paths =
+            vec![vec![vec![None; depth]; nodes]; public_params.graph.degree()];
+        let data_nodes = vec![None; nodes];
+        let data_nodes_paths = vec![vec![None; depth]; nodes];
+        let data_root = Root::Val(None);
+
+        DrgPoRepCircuit {
+            params,
+            sloth_iter: public_params.sloth_iter,
+            replica_nodes,
+            replica_nodes_paths,
+            replica_root,
+            replica_parents,
+            replica_parents_paths,
+            data_nodes,
+            data_nodes_paths,
+            data_root,
+            replica_id: None,
+            degree: public_params.graph.degree(),
+            private: false, // TODO: is this correct?
+        }
     }
 }
 
@@ -349,8 +377,11 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
         };
 
         // get the replica_id in bits
-        let replica_id_bits =
-            bytes_into_boolean_vec(cs.namespace(|| "replica_id_bits"), replica_id_bytes, 32)?;
+        let replica_id_bits = bytes_into_boolean_vec(
+            cs.namespace(|| "replica_id_bits"),
+            replica_id_bytes,
+            Fr::CAPACITY as usize,
+        )?;
 
         multipack::pack_into_inputs(
             cs.namespace(|| "replica_id"),
