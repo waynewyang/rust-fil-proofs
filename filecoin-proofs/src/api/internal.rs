@@ -64,35 +64,56 @@ lazy_static! {
 
 type Bls12GrothParams = groth16::Parameters<Bls12>;
 type Bls12VerifyingKey = groth16::VerifyingKey<Bls12>;
-type GrothMemCache = HashMap<String, Arc<Bls12GrothParams>>;
-type VerifyingKeyMemCache = HashMap<String, Arc<Bls12VerifyingKey>>;
+
+type Cache<G> = HashMap<String, Arc<G>>;
+type GrothMemCache = Cache<Bls12GrothParams>;
+type VerifyingKeyMemCache = Cache<Bls12VerifyingKey>;
 
 lazy_static! {
     static ref GROTH_PARAM_MEMORY_CACHE: Mutex<GrothMemCache> = Default::default();
     static ref VERIFYING_KEY_MEMORY_CACHE: Mutex<VerifyingKeyMemCache> = Default::default();
 }
 
-fn lookup_groth_params<F>(identifier: String, generator: F) -> error::Result<Arc<Bls12GrothParams>>
+fn cache_lookup<F, G>(
+    cache_ref: &Mutex<Cache<G>>,
+    identifier: String,
+    generator: F,
+) -> error::Result<Arc<G>>
 where
-    F: FnOnce() -> error::Result<Bls12GrothParams>,
+    F: FnOnce() -> error::Result<G>,
+    G: Send + Sync,
 {
-    info!(FCP_LOG, "trying groth parameters memory cache for: {}", &identifier; "target" => "params");
-    let cache = &mut (*GROTH_PARAM_MEMORY_CACHE).lock().unwrap();
+    info!(FCP_LOG, "trying parameters memory cache for: {}", &identifier; "target" => "params");
+    {
+        let cache = (*cache_ref).lock().unwrap();
 
-    if let Some(entry) = cache.get(&identifier) {
-        info!(FCP_LOG, "found params in memory cache"; "target" => "params");
-        return Ok(entry.clone());
+        if let Some(entry) = cache.get(&identifier) {
+            info!(FCP_LOG, "found params in memory cache for {}", &identifier; "target" => "params");
+            return Ok(entry.clone());
+        }
     }
 
-    info!(FCP_LOG, "no params in memory cache"; "target" => "params");
+    info!(FCP_LOG, "no params in memory cache for {}", &identifier; "target" => "params");
 
     let new_entry = Arc::new(generator()?);
     let res = new_entry.clone();
-    cache.insert(identifier, new_entry);
+    {
+        let cache = &mut (*cache_ref).lock().unwrap();
+        cache.insert(identifier, new_entry);
+    }
 
     Ok(res)
 }
 
+#[inline]
+fn lookup_groth_params<F>(identifier: String, generator: F) -> error::Result<Arc<Bls12GrothParams>>
+where
+    F: FnOnce() -> error::Result<Bls12GrothParams>,
+{
+    cache_lookup(&*GROTH_PARAM_MEMORY_CACHE, identifier, generator)
+}
+
+#[inline]
 fn lookup_verifying_key<F>(
     identifier: String,
     generator: F,
@@ -101,22 +122,7 @@ where
     F: FnOnce() -> error::Result<Bls12VerifyingKey>,
 {
     let vk_identifier = format!("{}-verifying-key", &identifier);
-    info!(FCP_LOG, "trying verifying key memory cache for: {}", &vk_identifier; "target" => "verifying_key");
-
-    let cache = &mut (*VERIFYING_KEY_MEMORY_CACHE).lock().unwrap();
-
-    if let Some(entry) = cache.get(&vk_identifier) {
-        info!(FCP_LOG, "found verifying_key in memory cache"; "target" => "verifying_key");
-        return Ok(entry.clone());
-    }
-
-    info!(FCP_LOG, "no verifying_key in memory cache"; "target" => "verifying_key");
-    let new_entry = Arc::new(generator()?);
-    let res = new_entry.clone();
-
-    cache.insert(vk_identifier, new_entry);
-
-    Ok(res)
+    cache_lookup(&*VERIFYING_KEY_MEMORY_CACHE, vk_identifier, generator)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
