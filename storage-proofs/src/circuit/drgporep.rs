@@ -287,7 +287,7 @@ where
             data_nodes,
             data_nodes_paths,
             data_root,
-            replica_id: replica_id.map(|f| f.into()),
+            replica_id: replica_id.map(Into::into),
             degree: public_params.graph.degree(),
             private: public_inputs.tau.is_none(),
         }

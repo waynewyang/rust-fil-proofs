@@ -133,7 +133,7 @@ fn get_zigzag_params(
     let public_params = public_params(sector_bytes);
 
     let get_params =
-        || ZigZagCompound::groth_params(&public_params, &ENGINE_PARAMS).map_err(|e| e.into());
+        || ZigZagCompound::groth_params(&public_params, &ENGINE_PARAMS).map_err(Into::into);
 
     Ok(lookup_groth_params(
         format!("ZIGZAG[{}]", usize::from(sector_bytes)),
@@ -152,7 +152,7 @@ fn get_post_params(
             VDFPoSt<PedersenHasher, Sloth>,
             VDFPoStCircuit<Bls12>,
         >>::groth_params(&post_public_params, &ENGINE_PARAMS)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     };
 
     Ok(lookup_groth_params(
@@ -167,7 +167,7 @@ fn get_zigzag_verifying_key(
     let public_params = public_params(sector_bytes);
 
     let get_verifying_key =
-        || ZigZagCompound::verifying_key(&public_params, &ENGINE_PARAMS).map_err(|e| e.into());
+        || ZigZagCompound::verifying_key(&public_params, &ENGINE_PARAMS).map_err(Into::into);
 
     Ok(lookup_verifying_key(
         format!("ZIGZAG[{}]", usize::from(sector_bytes)),
@@ -186,7 +186,7 @@ fn get_post_verifying_key(
             VDFPoSt<PedersenHasher, Sloth>,
             VDFPoStCircuit<Bls12>,
         >>::verifying_key(&post_public_params, &ENGINE_PARAMS)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
     };
 
     Ok(lookup_verifying_key(
@@ -437,7 +437,7 @@ fn verify_post_fixed_sectors_count(
     // for integration purposes.
     let _fixme_ignore: error::Result<bool> =
         VDFPostCompound::verify(&compound_public_params, &public_inputs, &proof)
-            .map_err(|e| e.into());
+            .map_err(Into::into);
 
     // Since callers may rely on previous mocked success, just pretend verification succeeded, for now.
     Ok(VerifyPoStFixedSectorsCountOutput { is_valid: true })
@@ -673,7 +673,7 @@ pub fn verify_seal(
 
     let proof = MultiProof::new_from_reader(Some(POREP_PARTITIONS), proof_vec, &verifying_key)?;
 
-    ZigZagCompound::verify(&compound_public_params, &public_inputs, &proof).map_err(|e| e.into())
+    ZigZagCompound::verify(&compound_public_params, &public_inputs, &proof).map_err(Into::into)
 }
 
 #[cfg(test)]

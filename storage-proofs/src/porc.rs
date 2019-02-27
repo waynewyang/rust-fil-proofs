@@ -63,15 +63,15 @@ pub struct Proof<H: Hasher>(
 
 impl<H: Hasher> Proof<H> {
     pub fn leafs(&self) -> Vec<&H::Domain> {
-        self.0.iter().map(|p| p.leaf()).collect()
+        self.0.iter().map(MerkleProof::leaf).collect()
     }
 
     pub fn commitments(&self) -> Vec<&H::Domain> {
-        self.0.iter().map(|p| p.root()).collect()
+        self.0.iter().map(MerkleProof::root).collect()
     }
 
     pub fn paths(&self) -> Vec<&Vec<(H::Domain, bool)>> {
-        self.0.iter().map(|p| p.path()).collect()
+        self.0.iter().map(MerkleProof::path).collect()
     }
 }
 
