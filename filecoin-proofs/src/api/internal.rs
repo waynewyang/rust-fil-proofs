@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::{copy, remove_file, File, OpenOptions};
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bellman::groth16;
 use memmap::MmapOptions;
@@ -68,32 +68,29 @@ type GrothMemCache = HashMap<String, Arc<Bls12GrothParams>>;
 type VerifyingKeyMemCache = HashMap<String, Arc<Bls12VerifyingKey>>;
 
 lazy_static! {
-    static ref GROTH_PARAM_MEMORY_CACHE: RwLock<GrothMemCache> = Default::default();
-    static ref VERIFYING_KEY_MEMORY_CACHE: RwLock<VerifyingKeyMemCache> = Default::default();
+    static ref GROTH_PARAM_MEMORY_CACHE: Mutex<GrothMemCache> = Default::default();
+    static ref VERIFYING_KEY_MEMORY_CACHE: Mutex<VerifyingKeyMemCache> = Default::default();
 }
 
 fn lookup_groth_params<F>(identifier: String, generator: F) -> error::Result<Arc<Bls12GrothParams>>
 where
     F: FnOnce() -> error::Result<Bls12GrothParams>,
 {
-    let cache = (*GROTH_PARAM_MEMORY_CACHE).read().unwrap();
     info!(FCP_LOG, "trying groth parameters memory cache for: {}", &identifier; "target" => "params");
+    let cache = &mut (*GROTH_PARAM_MEMORY_CACHE).lock().unwrap();
 
     if let Some(entry) = cache.get(&identifier) {
         info!(FCP_LOG, "found params in memory cache"; "target" => "params");
         return Ok(entry.clone());
     }
 
-    {
-        let new_entry = Arc::new(generator()?);
-        let res = new_entry.clone();
+    info!(FCP_LOG, "no params in memory cache"; "target" => "params");
 
-        // write lock only held in this block
-        let cache = &mut (*GROTH_PARAM_MEMORY_CACHE).write().unwrap();
-        cache.insert(identifier, new_entry);
+    let new_entry = Arc::new(generator()?);
+    let res = new_entry.clone();
+    cache.insert(identifier, new_entry);
 
-        Ok(res)
-    }
+    Ok(res)
 }
 
 fn lookup_verifying_key<F>(
@@ -103,26 +100,23 @@ fn lookup_verifying_key<F>(
 where
     F: FnOnce() -> error::Result<Bls12VerifyingKey>,
 {
-    let cache = (*VERIFYING_KEY_MEMORY_CACHE).read().unwrap();
     let vk_identifier = format!("{}-verifying-key", &identifier);
-
     info!(FCP_LOG, "trying verifying key memory cache for: {}", &vk_identifier; "target" => "verifying_key");
+
+    let cache = &mut (*VERIFYING_KEY_MEMORY_CACHE).lock().unwrap();
 
     if let Some(entry) = cache.get(&vk_identifier) {
         info!(FCP_LOG, "found verifying_key in memory cache"; "target" => "verifying_key");
         return Ok(entry.clone());
     }
 
-    {
-        let new_entry = Arc::new(generator()?);
-        let res = new_entry.clone();
+    info!(FCP_LOG, "no verifying_key in memory cache"; "target" => "verifying_key");
+    let new_entry = Arc::new(generator()?);
+    let res = new_entry.clone();
 
-        // write lock only held in this block
-        let cache = &mut (*VERIFYING_KEY_MEMORY_CACHE).write().unwrap();
-        cache.insert(vk_identifier, new_entry);
+    cache.insert(vk_identifier, new_entry);
 
-        Ok(res)
-    }
+    Ok(res)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
