@@ -302,14 +302,14 @@ where
     ) -> DrgPoRepCircuit<'a, Bls12> {
         let nodes = public_params.graph.size();
         let depth = public_params.graph.merkle_tree_depth() as usize;
+        let degree = public_params.graph.degree();
 
         let replica_nodes = vec![None; nodes];
         let replica_nodes_paths = vec![vec![None; depth]; nodes];
 
         let replica_root = Root::Val(None);
-        let replica_parents = vec![vec![None; depth]; nodes];
-        let replica_parents_paths =
-            vec![vec![vec![None; depth]; public_params.graph.degree()]; nodes];
+        let replica_parents = vec![vec![None; degree]; nodes];
+        let replica_parents_paths = vec![vec![vec![None; depth]; degree]; nodes];
         let data_nodes = vec![None; nodes];
         let data_nodes_paths = vec![vec![None; depth]; nodes];
         let data_root = Root::Val(None);
@@ -460,6 +460,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                             while v.len() < 256 {
                                 v.push(boolean::Boolean::Constant(false));
                             }
+
                             Ok(v)
                         })
                         .collect::<Result<Vec<Vec<Boolean>>, SynthesisError>>()?
