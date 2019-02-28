@@ -227,6 +227,7 @@ fn setup_params(sector_bytes: PaddedBytesAmount) -> layered_drgporep::SetupParam
                 seed: DRG_SEED,
             },
             sloth_iter: SLOTH_ITER,
+            private: true,
         },
         layer_challenges: CHALLENGES.clone(),
     }

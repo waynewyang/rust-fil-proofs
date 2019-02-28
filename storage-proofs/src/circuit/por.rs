@@ -145,7 +145,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
 
         {
             let value_num = num::AllocatedNum::alloc(cs.namespace(|| "value"), || {
-                Ok(value.ok_or_else(|| SynthesisError::AssignmentMissing)?)
+                value.ok_or_else(|| SynthesisError::AssignmentMissing)
             })?;
 
             let mut cur = value_num;

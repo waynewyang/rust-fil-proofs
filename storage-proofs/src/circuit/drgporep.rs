@@ -309,7 +309,7 @@ where
         let replica_root = Root::Val(None);
         let replica_parents = vec![vec![None; depth]; nodes];
         let replica_parents_paths =
-            vec![vec![vec![None; depth]; nodes]; public_params.graph.degree()];
+            vec![vec![vec![None; depth]; public_params.graph.degree()]; nodes];
         let data_nodes = vec![None; nodes];
         let data_nodes_paths = vec![vec![None; depth]; nodes];
         let data_root = Root::Val(None);
@@ -380,11 +380,8 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
         };
 
         // get the replica_id in bits
-        let replica_id_bits = bytes_into_boolean_vec(
-            cs.namespace(|| "replica_id_bits"),
-            replica_id_bytes,
-            Fr::CAPACITY as usize,
-        )?;
+        let replica_id_bits =
+            bytes_into_boolean_vec(cs.namespace(|| "replica_id_bits"), replica_id_bytes, 256)?;
 
         multipack::pack_into_inputs(
             cs.namespace(|| "replica_id"),

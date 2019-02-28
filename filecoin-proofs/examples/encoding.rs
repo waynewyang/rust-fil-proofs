@@ -108,6 +108,7 @@ where
                 seed: new_seed(),
             },
             sloth_iter,
+            private: true,
         },
         layer_challenges: LayerChallenges::new_fixed(1, 1),
     };

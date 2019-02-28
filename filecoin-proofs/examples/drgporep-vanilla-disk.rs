@@ -71,6 +71,7 @@ fn do_the_work<H: Hasher>(data_size: usize, m: usize, sloth_iter: usize, challen
             seed: new_seed(),
         },
         sloth_iter,
+        private: true,
     };
 
     info!(FCP_LOG, "running setup");

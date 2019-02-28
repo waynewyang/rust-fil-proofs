@@ -201,6 +201,7 @@ fn do_the_work<H: 'static>(
                 seed: new_seed(),
             },
             sloth_iter,
+            private: true,
         },
         layer_challenges: layer_challenges.clone(),
     };

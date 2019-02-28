@@ -423,8 +423,8 @@ mod tests {
         }
 
         assert!(cs.is_satisfied(), "constraints not satisfied");
-        assert_eq!(cs.num_inputs(), 16, "wrong number of inputs");
-        assert_eq!(cs.num_constraints(), 131097, "wrong number of constraints");
+        assert_eq!(cs.num_inputs(), 26, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 131107, "wrong number of constraints");
 
         assert_eq!(cs.get_input(0, "ONE"), Fr::one());
 
@@ -457,31 +457,33 @@ mod tests {
         let num_layers = 2;
         let base_degree = 2;
         let expansion_degree = 2;
-        let replica_id: Fr = rng.gen();
         let layer_challenges = LayerChallenges::new_fixed(num_layers, 1);
-        let challenge = 1;
         let sloth_iter = 2;
+        let challenge = 1;
+        let replica_id: Fr = rng.gen();
 
         let mut cs = TestConstraintSystem::<Bls12>::new();
-        let layers = vec![None; num_layers]; // (0..num_layers)
-                                             // .map(|_l| {
-                                             //     // l is ignored because we assume uniform layers here.
-                                             //     let public_inputs = drgporep::PublicInputs {
-                                             //         replica_id: replica_id.into(),
-                                             //         challenges: vec![challenge],
-                                             //         tau: None,
-                                             //     };
-                                             //     let proof = None;
-                                             //     Some((public_inputs, proof))
-                                             // })
-                                             // .collect();
+        let graph = ZigZagGraph::new_zigzag(n, base_degree, expansion_degree, new_seed());
+        let height = graph.merkle_tree_depth() as usize;
 
+        let layers = (0..num_layers)
+            .map(|l| {
+                // l is ignored because we assume uniform layers here.
+                let public_inputs = drgporep::PublicInputs {
+                    replica_id: replica_id.into(),
+                    challenges: vec![challenge],
+                    tau: None,
+                };
+                let proof = drgporep::Proof::new_empty(
+                    height,
+                    graph.degree(),
+                    layer_challenges.challenges_for_layer(l),
+                );
+                Some((public_inputs, proof))
+            })
+            .collect();
         let public_params = layered_drgporep::PublicParams {
-            drg_porep_public_params: drgporep::PublicParams::new(
-                ZigZagGraph::new_zigzag(n, base_degree, expansion_degree, new_seed()),
-                sloth_iter,
-                false,
-            ),
+            drg_porep_public_params: drgporep::PublicParams::new(graph, sloth_iter, false),
             layer_challenges,
         };
 
@@ -498,8 +500,8 @@ mod tests {
         )
         .expect("failed to synthesize circuit");
 
-        assert_eq!(cs.num_inputs(), 18, "wrong number of inputs");
-        assert_eq!(cs.num_constraints(), 547539, "wrong number of constraints");
+        assert_eq!(cs.num_inputs(), 30, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 547551, "wrong number of constraints");
     }
 
     #[test]
@@ -539,7 +541,7 @@ mod tests {
                         seed: new_seed(),
                     },
                     sloth_iter,
-                    private: false,
+                    private: true,
                 },
                 layer_challenges: layer_challenges.clone(),
             },

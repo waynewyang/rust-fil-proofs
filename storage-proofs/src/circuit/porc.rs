@@ -170,12 +170,14 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCCircuit<'a, E> {
         for (i, (challenged_leaf, path)) in challenged_leafs.iter().zip(paths).enumerate() {
             let mut cs = cs.namespace(|| format!("challenge_{}", i));
 
-            let commitment =
-                commitments[challenged_sectors[i].ok_or(SynthesisError::AssignmentMissing)?];
+            let commitment = match challenged_sectors[i] {
+                Some(s) => commitments[s],
+                None => None,
+            };
 
             // Allocate the commitment
             let rt = num::AllocatedNum::alloc(cs.namespace(|| "commitment_num"), || {
-                commitment.ok_or(SynthesisError::AssignmentMissing)
+                commitment.ok_or_else(|| SynthesisError::AssignmentMissing)
             })?;
 
             let params = params;
@@ -205,7 +207,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCCircuit<'a, E> {
                 // at this depth.
                 let path_element =
                     num::AllocatedNum::alloc(cs.namespace(|| "path element"), || {
-                        Ok(e.ok_or(SynthesisError::AssignmentMissing)?.0)
+                        Ok(e.ok_or_else(|| SynthesisError::AssignmentMissing)?.0)
                     })?;
 
                 // Swap the two if the current subtree is on the right
@@ -235,7 +237,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCCircuit<'a, E> {
 
             let challenge_num =
                 num::AllocatedNum::alloc(cs.namespace(|| format!("challenge {}", i)), || {
-                    Ok(challenges[i].ok_or(SynthesisError::AssignmentMissing)?)
+                    challenges[i].ok_or_else(|| SynthesisError::AssignmentMissing)
                 })?;
 
             // allocate value for is_right path
