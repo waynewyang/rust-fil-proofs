@@ -306,9 +306,7 @@ impl<'a, H: 'static + Hasher>
         public_params: &<ZigZagDrgPoRep<H> as ProofScheme>::PublicParams,
         params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> ZigZagCircuit<'a, Bls12, H> {
-        let layers = (0..public_params.layer_challenges.layers())
-            .map(|_l| None)
-            .collect();
+        let layers = vec![None; public_params.layer_challenges.layers()];
         let pp: <ZigZagDrgPoRep<H> as ProofScheme>::PublicParams = public_params.into();
 
         ZigZagCircuit {
@@ -372,7 +370,7 @@ mod tests {
                     seed: new_seed(),
                 },
                 sloth_iter,
-                private: false,
+                private: true,
             },
             layer_challenges: layer_challenges.clone(),
         };
@@ -423,8 +421,8 @@ mod tests {
         }
 
         assert!(cs.is_satisfied(), "constraints not satisfied");
-        assert_eq!(cs.num_inputs(), 26, "wrong number of inputs");
-        assert_eq!(cs.num_constraints(), 131107, "wrong number of constraints");
+        assert_eq!(cs.num_inputs(), 16, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 131097, "wrong number of constraints");
 
         assert_eq!(cs.get_input(0, "ONE"), Fr::one());
 
@@ -483,7 +481,7 @@ mod tests {
             })
             .collect();
         let public_params = layered_drgporep::PublicParams {
-            drg_porep_public_params: drgporep::PublicParams::new(graph, sloth_iter, false),
+            drg_porep_public_params: drgporep::PublicParams::new(graph, sloth_iter, true),
             layer_challenges,
         };
 
@@ -500,8 +498,8 @@ mod tests {
         )
         .expect("failed to synthesize circuit");
 
-        assert_eq!(cs.num_inputs(), 30, "wrong number of inputs");
-        assert_eq!(cs.num_constraints(), 547551, "wrong number of constraints");
+        assert_eq!(cs.num_inputs(), 18, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 547539, "wrong number of constraints");
     }
 
     #[test]

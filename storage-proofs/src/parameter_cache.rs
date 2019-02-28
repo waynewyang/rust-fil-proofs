@@ -26,6 +26,8 @@ pub const PARAMETER_RNG_SEED: [u32; 4] = [0x3dbe6259, 0x8d313d76, 0x3237db17, 0x
 #[derive(Debug)]
 struct LockedFile(File);
 
+// TODO: use in memory lock as well, as file locks do not guarantee exclusive access acros OSes.
+
 impl LockedFile {
     pub fn open_exclusive_read<P: AsRef<Path>>(p: P) -> io::Result<Self> {
         let f = fs::OpenOptions::new().read(true).open(p)?;

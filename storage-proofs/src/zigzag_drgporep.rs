@@ -104,7 +104,7 @@ mod tests {
                     seed: new_seed(),
                 },
                 sloth_iter,
-                private: false,
+                private: true,
             },
             layer_challenges: challenges.clone(),
         };
@@ -174,7 +174,7 @@ mod tests {
                     seed: new_seed(),
                 },
                 sloth_iter,
-                private: false,
+                private: true,
             },
             layer_challenges: challenges.clone(),
         };
