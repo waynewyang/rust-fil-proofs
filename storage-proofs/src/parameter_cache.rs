@@ -72,7 +72,7 @@ impl Drop for LockedFile {
     fn drop(&mut self) {
         self.0
             .unlock()
-            .expect(&format!("failed to {:?} unlock file safely", &self.0));
+            .unwrap_or_else(|e| panic!("{}: failed to {:?} unlock file safely", e, &self.0));
     }
 }
 
