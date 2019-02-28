@@ -29,6 +29,7 @@ pub struct PrivateInputs<'a, H: 'a + Hasher> {
 pub struct SetupParams {
     pub drg: DrgParams,
     pub sloth_iter: usize,
+    pub private: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +54,7 @@ where
 {
     pub graph: G,
     pub sloth_iter: usize,
+    pub private: bool,
 
     _h: PhantomData<H>,
 }
@@ -62,10 +64,11 @@ where
     H: Hasher,
     G: Graph<H> + ParameterSetIdentifier,
 {
-    pub fn new(graph: G, sloth_iter: usize) -> Self {
+    pub fn new(graph: G, sloth_iter: usize, private: bool) -> Self {
         PublicParams {
             graph,
             sloth_iter,
+            private,
             _h: PhantomData,
         }
     }
@@ -250,7 +253,7 @@ where
             sp.drg.seed,
         );
 
-        Ok(PublicParams::new(graph, sp.sloth_iter))
+        Ok(PublicParams::new(graph, sp.sloth_iter, sp.private))
     }
 
     fn prove<'b>(
@@ -500,6 +503,7 @@ mod tests {
                 seed: new_seed(),
             },
             sloth_iter,
+            private: false,
         };
 
         let pp = DrgPoRep::<H, BucketGraph<H>>::setup(&sp).unwrap();
@@ -549,6 +553,7 @@ mod tests {
                 seed: new_seed(),
             },
             sloth_iter,
+            private: false,
         };
 
         let pp = DrgPoRep::<H, BucketGraph<H>>::setup(&sp).unwrap();
@@ -621,6 +626,7 @@ mod tests {
                     seed,
                 },
                 sloth_iter,
+                private: false,
             };
 
             let pp = DrgPoRep::<H, BucketGraph<_>>::setup(&sp).unwrap();

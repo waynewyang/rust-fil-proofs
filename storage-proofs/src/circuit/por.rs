@@ -88,10 +88,16 @@ where
     }
 
     fn blank_circuit(
-        _public_params: &<MerklePoR<H> as ProofScheme<'a>>::PublicParams,
-        _engine_params: &'a JubjubBls12,
+        public_params: &<MerklePoR<H> as ProofScheme<'a>>::PublicParams,
+        params: &'a JubjubBls12,
     ) -> PoRCircuit<'a, Bls12> {
-        unimplemented!("")
+        PoRCircuit::<Bls12> {
+            params,
+            value: None,
+            auth_path: vec![None; graph_height(public_params.leaves)],
+            root: Root::Val(None),
+            private: public_params.private,
+        }
     }
 
     fn generate_public_inputs(

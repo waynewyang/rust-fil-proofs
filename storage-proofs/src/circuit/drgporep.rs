@@ -172,16 +172,17 @@ where
 
         let replica_id_bits = bytes_into_bits(&replica_id.into_bytes());
 
+        let mut input = Vec::new();
+
         let packed_replica_id =
             multipack::compute_multipacking::<Bls12>(&replica_id_bits[0..Fr::CAPACITY as usize]);
+
+        input.extend(packed_replica_id.clone());
 
         let por_pub_params = merklepor::PublicParams {
             leaves,
             private: comm_d.is_none(),
         };
-
-        let mut input = Vec::new();
-        input.extend(packed_replica_id.clone());
 
         for challenge in challenges {
             let mut por_nodes = vec![*challenge];
@@ -276,6 +277,8 @@ where
             .map(|node| node.proof.as_options())
             .collect();
 
+        assert!(public_inputs.tau.is_none(), public_params.private);
+
         DrgPoRepCircuit {
             params: engine_params,
             sloth_iter: public_params.sloth_iter,
@@ -289,7 +292,7 @@ where
             data_root,
             replica_id: replica_id.map(Into::into),
             degree: public_params.graph.degree(),
-            private: public_inputs.tau.is_none(),
+            private: public_params.private,
         }
     }
 
@@ -324,7 +327,7 @@ where
             data_root,
             replica_id: None,
             degree: public_params.graph.degree(),
-            private: false, // TODO: is this correct?
+            private: public_params.private,
         }
     }
 }
@@ -545,6 +548,7 @@ mod tests {
                 seed: new_seed(),
             },
             sloth_iter,
+            private: false,
         };
 
         let pp = drgporep::DrgPoRep::<PedersenHasher, BucketGraph<_>>::setup(&sp)
@@ -702,6 +706,7 @@ mod tests {
                     seed,
                 },
                 sloth_iter,
+                private: false,
             },
             engine_params: params,
             partitions: None,
@@ -736,6 +741,7 @@ mod tests {
                     seed,
                 },
                 sloth_iter,
+                private: false,
             },
             engine_params: params,
             partitions: None,
