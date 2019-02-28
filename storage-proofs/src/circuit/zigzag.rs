@@ -86,6 +86,11 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
         let graph = self.public_params.drg_porep_public_params.graph.clone();
         let mut crs_input = vec![0u8; 32 * (self.layers.len() + 1)];
 
+        assert_eq!(
+            self.public_params.layer_challenges.layers(),
+            self.layers.len()
+        );
+
         if let Some(ref l) = self.layers[0] {
             l.0.replica_id
                 .write_bytes(&mut crs_input[0..32])

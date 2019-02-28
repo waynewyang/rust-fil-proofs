@@ -277,7 +277,11 @@ where
             .map(|node| node.proof.as_options())
             .collect();
 
-        assert!(public_inputs.tau.is_none(), public_params.private);
+        assert_eq!(
+            public_inputs.tau.is_none(),
+            public_params.private,
+            "inconsistent private state"
+        );
 
         DrgPoRepCircuit {
             params: engine_params,
@@ -367,6 +371,14 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
         let data_root = self.data_root;
 
         let degree = self.degree;
+        let nodes = self.data_nodes.len();
+
+        assert_eq!(self.replica_nodes.len(), nodes);
+        assert_eq!(self.replica_nodes_paths.len(), nodes);
+        assert_eq!(self.replica_parents.len(), nodes);
+        assert_eq!(self.replica_parents_paths.len(), nodes);
+
+        assert_eq!(self.data_nodes_paths.len(), nodes);
 
         let raw_bytes; // Need let here so borrow in match lives long enough.
         let replica_id_bytes = match replica_id {
@@ -753,7 +765,7 @@ mod tests {
             &public_params.vanilla_params,
             &params,
         )
-        .unwrap();
+        .expect("failed to get groth params");
 
         let proof = DrgPoRepCompound::<PedersenHasher, _>::prove(
             &public_params,
