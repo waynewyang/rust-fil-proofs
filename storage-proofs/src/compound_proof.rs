@@ -116,7 +116,9 @@ where
         if multi_proof.circuit_proofs.len() != Self::partition_count(public_params) {
             return Ok(false);
         }
+
         for (k, circuit_proof) in multi_proof.circuit_proofs.iter().enumerate() {
+            println!("Validating proof {}", k);
             let inputs =
                 Self::generate_public_inputs(public_inputs, vanilla_public_params, Some(k));
 

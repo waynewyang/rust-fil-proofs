@@ -232,6 +232,12 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
             }
         }
 
+        assert_eq!(porep_proofs.len(), pub_params.post_epochs);
+        assert_eq!(ys.len(), pub_params.post_epochs - 1);
+        assert_eq!(vdf_proofs.len(), pub_params.post_epochs);
+        assert_eq!(challenges_vec.len(), pub_params.post_epochs);
+        assert_eq!(challenged_sectors_vec.len(), pub_params.post_epochs);
+
         Ok(Proof {
             porep_proofs,
             ys,

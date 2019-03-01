@@ -76,6 +76,7 @@ where
         inputs.push(compute_root_commitment(&pub_in.commitments).into());
         inputs
     }
+
     fn circuit(
         pub_in: &<VDFPoSt<H, V> as ProofScheme<'a>>::PublicInputs,
         _component_private_inputs:<VDFPoStCircuit<'a, Bls12> as CircuitComponent>::ComponentPrivateInputs,
@@ -83,6 +84,13 @@ where
         pub_params: &<VDFPoSt<H, V> as ProofScheme<'a>>::PublicParams,
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> VDFPoStCircuit<'a, Bls12> {
+        let post_epochs = pub_params.post_epochs;
+        let challenge_count = pub_params.challenge_count;
+
+        assert_eq!(vanilla_proof.porep_proofs.len(), post_epochs);
+        assert_eq!(vanilla_proof.ys.len(), post_epochs - 1);
+        assert_eq!(vanilla_proof.challenges.len(), challenge_count);
+
         let vdf_ys = vanilla_proof
             .ys
             .iter()
@@ -169,8 +177,8 @@ where
         let challenged_sectors_vec = vec![vec![None; challenge_count]; post_epochs];
         let challenged_leafs_vec = vec![vec![None; challenge_count]; post_epochs];
         let commitments_vec = vec![vec![None; challenge_count]; post_epochs];
-        let vdf_xs = vec![None; post_epochs];
-        let vdf_ys = vec![None; post_epochs];
+        let vdf_xs = vec![None; post_epochs - 1];
+        let vdf_ys = vec![None; post_epochs - 1];
         let paths_vec = vec![vec![vec![None; challenge_bits + 1]; challenge_count]; post_epochs];
 
         VDFPoStCircuit {
@@ -256,10 +264,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for VDFPoStCircuit<'a, E> {
                     verify_challenges(
                         &mut cs,
                         // Should be CHALLENGES, not CHALLENGED_LEAFS.
-                        challenged_leafs_vec[i]
-                            .iter()
-                            .map(|l| (*l).unwrap())
-                            .collect::<Vec<_>>(),
+                        challenged_leafs_vec[i].iter().collect::<Vec<_>>(),
                         partial_challenge,
                         Some(challenge_seed), // First iteration uses supplied challenge seed.
                         paths_vec[i][0].len(),
@@ -267,10 +272,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for VDFPoStCircuit<'a, E> {
                 } else {
                     verify_challenges(
                         &mut cs,
-                        challenged_leafs_vec[i]
-                            .iter()
-                            .map(|l| (*l).unwrap())
-                            .collect::<Vec<_>>(),
+                        challenged_leafs_vec[i].iter().collect::<Vec<_>>(),
                         partial_challenge,
                         *y, // Subsequent iterations use computed Vdf result
                         paths_vec[i][0].len(),
@@ -314,7 +316,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for VDFPoStCircuit<'a, E> {
 
 fn verify_challenges<E: Engine, CS: ConstraintSystem<E>, T>(
     _cs: &mut CS,
-    _challenges: Vec<E::Fr>,
+    _challenges: Vec<&Option<E::Fr>>,
     _partial_challenge: &Option<E::Fr>,
     // This is generic because it needs to work with a public input (challenge seed) on first iteration
     // then an allocated number subsequently.
@@ -606,5 +608,4 @@ mod tests {
 
         assert!(verified);
     }
-
 }
