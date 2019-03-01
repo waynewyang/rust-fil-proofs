@@ -81,6 +81,7 @@ fn do_the_work<H: Hasher>(data_size: usize, m: usize, sloth_iter: usize, challen
         },
         sloth_iter,
         private: true,
+        challenges_count: challenge_count,
     };
 
     info!(FCP_LOG, "running setup");

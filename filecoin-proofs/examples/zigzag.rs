@@ -202,6 +202,7 @@ fn do_the_work<H: 'static>(
             },
             sloth_iter,
             private: true,
+            challenges_count: layer_challenges.max_challenges(),
         },
         layer_challenges: layer_challenges.clone(),
     };

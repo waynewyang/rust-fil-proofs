@@ -56,6 +56,14 @@ impl LayerChallenges {
         }
     }
 
+    /// Returns the maximum number of challenges on any single layer.
+    pub fn max_challenges(&self) -> usize {
+        match self {
+            LayerChallenges::Fixed { count, .. } => *count,
+            LayerChallenges::Tapered { count, .. } => *count,
+        }
+    }
+
     pub fn challenges_for_layer(&self, layer: usize) -> usize {
         match self {
             LayerChallenges::Fixed { count, .. } => *count,

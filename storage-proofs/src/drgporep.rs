@@ -30,6 +30,7 @@ pub struct SetupParams {
     pub drg: DrgParams,
     pub sloth_iter: usize,
     pub private: bool,
+    pub challenges_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +56,7 @@ where
     pub graph: G,
     pub sloth_iter: usize,
     pub private: bool,
+    pub challenges_count: usize,
 
     _h: PhantomData<H>,
 }
@@ -64,11 +66,12 @@ where
     H: Hasher,
     G: Graph<H> + ParameterSetIdentifier,
 {
-    pub fn new(graph: G, sloth_iter: usize, private: bool) -> Self {
+    pub fn new(graph: G, sloth_iter: usize, private: bool, challenges_count: usize) -> Self {
         PublicParams {
             graph,
             sloth_iter,
             private,
+            challenges_count,
             _h: PhantomData,
         }
     }
@@ -253,7 +256,12 @@ where
             sp.drg.seed,
         );
 
-        Ok(PublicParams::new(graph, sp.sloth_iter, sp.private))
+        Ok(PublicParams::new(
+            graph,
+            sp.sloth_iter,
+            sp.private,
+            sp.challenges_count,
+        ))
     }
 
     fn prove<'b>(
@@ -262,6 +270,12 @@ where
         priv_inputs: &'b Self::PrivateInputs,
     ) -> Result<Self::Proof> {
         let len = pub_inputs.challenges.len();
+        assert!(
+            len <= pub_params.challenges_count,
+            "too many challenges {} > {}",
+            len,
+            pub_params.challenges_count
+        );
 
         let mut replica_nodes = Vec::with_capacity(len);
         let mut replica_parents = Vec::with_capacity(len);
@@ -504,6 +518,7 @@ mod tests {
             },
             sloth_iter,
             private: false,
+            challenges_count: 1,
         };
 
         let pp = DrgPoRep::<H, BucketGraph<H>>::setup(&sp).unwrap();
@@ -554,6 +569,7 @@ mod tests {
             },
             sloth_iter,
             private: false,
+            challenges_count: 1,
         };
 
         let pp = DrgPoRep::<H, BucketGraph<H>>::setup(&sp).unwrap();
@@ -627,6 +643,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: false,
+                challenges_count: 2,
             };
 
             let pp = DrgPoRep::<H, BucketGraph<_>>::setup(&sp).unwrap();

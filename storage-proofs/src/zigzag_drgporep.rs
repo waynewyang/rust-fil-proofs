@@ -49,7 +49,12 @@ where
     H: Hasher,
     Z: ZigZag + Graph<H> + ParameterSetIdentifier,
 {
-    drgporep::PublicParams::new(pp.graph.zigzag(), pp.sloth_iter, pp.private)
+    drgporep::PublicParams::new(
+        pp.graph.zigzag(),
+        pp.sloth_iter,
+        pp.private,
+        pp.challenges_count,
+    )
 }
 
 #[cfg(test)]
@@ -105,6 +110,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: true,
+                challenges_count: challenges.max_challenges(),
             },
             layer_challenges: challenges.clone(),
         };
@@ -175,6 +181,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: true,
+                challenges_count: challenges.max_challenges(),
             },
             layer_challenges: challenges.clone(),
         };

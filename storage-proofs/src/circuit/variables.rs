@@ -28,4 +28,12 @@ impl<E: Engine> Root<E> {
     pub fn var<CS: ConstraintSystem<E>>(cs: CS, fr: E::Fr) -> Self {
         Root::Var(AllocatedNum::alloc(cs, || Ok(fr)).unwrap())
     }
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            Root::Var(_) => true,
+            Root::Val(Some(_)) => true,
+            Root::Val(None) => false,
+        }
+    }
 }

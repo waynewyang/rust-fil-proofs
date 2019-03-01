@@ -163,6 +163,9 @@ where
     ) -> Vec<Fr> {
         let replica_id = pub_in.replica_id;
         let challenges = &pub_in.challenges;
+
+        assert_eq!(pub_in.tau.is_none(), pub_params.private);
+
         let (comm_r, comm_d) = match pub_in.tau {
             None => (None, None),
             Some(tau) => (Some(tau.comm_r), Some(tau.comm_d)),
@@ -172,17 +175,16 @@ where
 
         let replica_id_bits = bytes_into_bits(&replica_id.into_bytes());
 
-        let mut input = Vec::new();
-
         let packed_replica_id =
             multipack::compute_multipacking::<Bls12>(&replica_id_bits[0..Fr::CAPACITY as usize]);
 
-        input.extend(packed_replica_id.clone());
-
         let por_pub_params = merklepor::PublicParams {
             leaves,
-            private: comm_d.is_none(),
+            private: pub_params.private,
         };
+
+        let mut input = Vec::new();
+        input.extend(packed_replica_id);
 
         for challenge in challenges {
             let mut por_nodes = vec![*challenge];
@@ -222,27 +224,51 @@ where
         public_params: &'b <DrgPoRep<'a, H, G> as ProofScheme<'a>>::PublicParams,
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
-        let replica_nodes = proof
+        let challenges = public_params.challenges_count;
+        let depth = public_params.graph.merkle_tree_depth() as usize;
+        let degree = public_params.graph.degree();
+
+        let len = proof.nodes.len();
+
+        assert!(len <= challenges, "too many challenges");
+        assert_eq!(proof.replica_parents.len(), len);
+        assert_eq!(proof.replica_nodes.len(), len);
+
+        let mut replica_nodes: Vec<_> = proof
             .replica_nodes
             .iter()
             .map(|node| Some(node.data.into()))
             .collect();
 
-        let replica_nodes_paths = proof
+        // ensure we have the full set of challenges filled
+        replica_nodes.resize(challenges, None);
+
+        let mut replica_nodes_paths: Vec<_> = proof
             .replica_nodes
             .iter()
             .map(|node| node.proof.as_options())
             .collect();
 
-        let private_data_root = component_private_inputs.comm_d;
-        let private_replica_root = component_private_inputs.comm_r;
-        let replica_root =
-            private_replica_root.unwrap_or_else(|| Root::Val(Some(proof.replica_root.into())));
-        let data_root =
-            private_data_root.unwrap_or_else(|| Root::Val(Some((proof.data_root).into())));
+        // ensure we have the full set of challenges filled
+        replica_nodes_paths.resize(challenges, vec![None; depth]);
+
+        let is_private = public_params.private;
+
+        let (data_root, replica_root) = if is_private {
+            (
+                component_private_inputs.comm_d.expect("is_private"),
+                component_private_inputs.comm_r.expect("is_private"),
+            )
+        } else {
+            (
+                Root::Val(Some(proof.data_root.into())),
+                Root::Val(Some(proof.replica_root.into())),
+            )
+        };
+
         let replica_id = Some(public_inputs.replica_id);
 
-        let replica_parents = proof
+        let mut replica_parents: Vec<_> = proof
             .replica_parents
             .iter()
             .map(|parents| {
@@ -253,7 +279,10 @@ where
             })
             .collect();
 
-        let replica_parents_paths: Vec<Vec<_>> = proof
+        // ensure we have the full set of challenges filled
+        replica_parents.resize(challenges, vec![None; degree]);
+
+        let mut replica_parents_paths: Vec<Vec<_>> = proof
             .replica_parents
             .iter()
             .map(|parents| {
@@ -265,17 +294,26 @@ where
             })
             .collect();
 
-        let data_nodes = proof
+        // ensure we have the full set of challenges filled
+        replica_parents_paths.resize(challenges, vec![vec![None; depth]; degree]);
+
+        let mut data_nodes: Vec<_> = proof
             .nodes
             .iter()
             .map(|node| Some(node.data.into()))
             .collect();
 
-        let data_nodes_paths = proof
+        // ensure we have the full set of challenges filled
+        data_nodes.resize(challenges, None);
+
+        let mut data_nodes_paths: Vec<_> = proof
             .nodes
             .iter()
             .map(|node| node.proof.as_options())
             .collect();
+
+        // ensure we have the full set of challenges filled
+        data_nodes_paths.resize(challenges, vec![None; depth]);
 
         assert_eq!(
             public_inputs.tau.is_none(),
@@ -304,18 +342,18 @@ where
         public_params: &<DrgPoRep<'a, H, G> as ProofScheme<'a>>::PublicParams,
         params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
-        let nodes = public_params.graph.size();
         let depth = public_params.graph.merkle_tree_depth() as usize;
         let degree = public_params.graph.degree();
+        let challenges_count = public_params.challenges_count;
 
-        let replica_nodes = vec![None; nodes];
-        let replica_nodes_paths = vec![vec![None; depth]; nodes];
+        let replica_nodes = vec![None; challenges_count];
+        let replica_nodes_paths = vec![vec![None; depth]; challenges_count];
 
         let replica_root = Root::Val(None);
-        let replica_parents = vec![vec![None; degree]; nodes];
-        let replica_parents_paths = vec![vec![vec![None; depth]; degree]; nodes];
-        let data_nodes = vec![None; nodes];
-        let data_nodes_paths = vec![vec![None; depth]; nodes];
+        let replica_parents = vec![vec![None; degree]; challenges_count];
+        let replica_parents_paths = vec![vec![vec![None; depth]; degree]; challenges_count];
+        let data_nodes = vec![None; challenges_count];
+        let data_nodes_paths = vec![vec![None; depth]; challenges_count];
         let data_root = Root::Val(None);
 
         DrgPoRepCircuit {
@@ -559,6 +597,7 @@ mod tests {
             },
             sloth_iter,
             private: false,
+            challenges_count: 1,
         };
 
         let pp = drgporep::DrgPoRep::<PedersenHasher, BucketGraph<_>>::setup(&sp)
@@ -592,13 +631,23 @@ mod tests {
 
         let replica_node_path = proof_nc.replica_nodes[0].proof.as_options();
         let replica_root = Root::Val(Some((proof_nc.replica_root).into()));
-        let replica_parents = proof_nc.replica_parents[0]
+        let replica_parents = proof_nc
+            .replica_parents
             .iter()
-            .map(|(_, parent)| Some(parent.data.into()))
+            .map(|v| {
+                v.iter()
+                    .map(|(_, parent)| Some(parent.data.into()))
+                    .collect()
+            })
             .collect();
-        let replica_parents_paths: Vec<_> = proof_nc.replica_parents[0]
+        let replica_parents_paths: Vec<_> = proof_nc
+            .replica_parents
             .iter()
-            .map(|(_, parent)| parent.proof.as_options())
+            .map(|v| {
+                v.iter()
+                    .map(|(_, parent)| parent.proof.as_options())
+                    .collect()
+            })
             .collect();
 
         let data_node_path = proof_nc.nodes[0].proof.as_options();
@@ -624,8 +673,8 @@ mod tests {
             vec![replica_node],
             vec![replica_node_path],
             replica_root,
-            vec![replica_parents],
-            vec![replica_parents_paths],
+            replica_parents,
+            replica_parents_paths,
             vec![data_node],
             vec![data_node_path],
             data_root,
@@ -717,6 +766,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: false,
+                challenges_count: 2,
             },
             engine_params: params,
             partitions: None,
@@ -752,6 +802,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: false,
+                challenges_count: 2,
             },
             engine_params: params,
             partitions: None,

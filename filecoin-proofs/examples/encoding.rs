@@ -109,6 +109,7 @@ where
             },
             sloth_iter,
             private: true,
+            challenges_count: 1,
         },
         layer_challenges: LayerChallenges::new_fixed(1, 1),
     };

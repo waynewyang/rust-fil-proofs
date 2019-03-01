@@ -239,6 +239,7 @@ impl<'a, H: 'static + Hasher>
             pub_params.drg_porep_public_params.graph.clone(),
             pub_params.drg_porep_public_params.sloth_iter,
             pub_params.drg_porep_public_params.private,
+            pub_params.drg_porep_public_params.challenges_count,
         );
 
         let comm_d = pub_in.tau.unwrap().comm_d.into();
@@ -376,6 +377,7 @@ mod tests {
                 },
                 sloth_iter,
                 private: true,
+                challenges_count: layer_challenges.max_challenges(),
             },
             layer_challenges: layer_challenges.clone(),
         };
@@ -486,7 +488,12 @@ mod tests {
             })
             .collect();
         let public_params = layered_drgporep::PublicParams {
-            drg_porep_public_params: drgporep::PublicParams::new(graph, sloth_iter, true),
+            drg_porep_public_params: drgporep::PublicParams::new(
+                graph,
+                sloth_iter,
+                true,
+                layer_challenges.max_challenges(),
+            ),
             layer_challenges,
         };
 
@@ -545,6 +552,7 @@ mod tests {
                     },
                     sloth_iter,
                     private: true,
+                    challenges_count: layer_challenges.max_challenges(),
                 },
                 layer_challenges: layer_challenges.clone(),
             },
