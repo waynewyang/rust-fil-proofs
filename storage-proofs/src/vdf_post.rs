@@ -180,7 +180,7 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
         };
 
         let mut porep_proofs = Vec::with_capacity(post_epochs);
-        let mut vdf_proofs = Vec::with_capacity(post_epochs);
+        let mut vdf_proofs = Vec::with_capacity(post_epochs - 1);
         let mut ys = Vec::with_capacity(post_epochs - 1);
         let mut challenges_vec = Vec::with_capacity(post_epochs);
         let mut challenged_sectors_vec = Vec::with_capacity(post_epochs);
@@ -214,9 +214,10 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
                 };
 
                 let proof = PoRC::prove(&pub_params_porep, &pub_inputs_porep, &priv_inputs_porep)?;
+                porep_proofs.push(proof.clone());
 
                 // Skip last VDF evaluation.
-                if i < post_epochs {
+                if i + 1 < post_epochs {
                     let x = extract_vdf_input::<H>(&proof);
                     let (y, vdf_proof) = V::eval(&pub_params.pub_params_vdf, &x)?;
 
@@ -226,15 +227,13 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
                 } else {
                     break;
                 }
-                porep_proofs.push(proof);
-
                 i += 1;
             }
         }
 
         assert_eq!(porep_proofs.len(), pub_params.post_epochs);
         assert_eq!(ys.len(), pub_params.post_epochs - 1);
-        assert_eq!(vdf_proofs.len(), pub_params.post_epochs);
+        assert_eq!(vdf_proofs.len(), pub_params.post_epochs - 1);
         assert_eq!(challenges_vec.len(), pub_params.post_epochs);
         assert_eq!(challenged_sectors_vec.len(), pub_params.post_epochs);
 
@@ -260,7 +259,7 @@ impl<'a, H: Hasher + 'a, V: Vdf<H::Domain>> ProofScheme<'a> for VDFPoSt<H, V> {
 
         let mut i = 0;
         while let Some((challenges, challenged_sectors)) = challenge_stream.next(mix) {
-            if i >= post_epochs {
+            if i + 1 >= post_epochs {
                 break;
             }
 
