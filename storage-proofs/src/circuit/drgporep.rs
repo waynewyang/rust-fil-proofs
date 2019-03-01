@@ -225,32 +225,23 @@ where
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
         let challenges = public_params.challenges_count;
-        let depth = public_params.graph.merkle_tree_depth() as usize;
-        let degree = public_params.graph.degree();
-
         let len = proof.nodes.len();
 
         assert!(len <= challenges, "too many challenges");
         assert_eq!(proof.replica_parents.len(), len);
         assert_eq!(proof.replica_nodes.len(), len);
 
-        let mut replica_nodes: Vec<_> = proof
+        let replica_nodes: Vec<_> = proof
             .replica_nodes
             .iter()
             .map(|node| Some(node.data.into()))
             .collect();
 
-        // ensure we have the full set of challenges filled
-        replica_nodes.resize(challenges, None);
-
-        let mut replica_nodes_paths: Vec<_> = proof
+        let replica_nodes_paths: Vec<_> = proof
             .replica_nodes
             .iter()
             .map(|node| node.proof.as_options())
             .collect();
-
-        // ensure we have the full set of challenges filled
-        replica_nodes_paths.resize(challenges, vec![None; depth]);
 
         let is_private = public_params.private;
         dbg!("roots");
@@ -269,7 +260,7 @@ where
         dbg!("replica_Id");
         let replica_id = Some(public_inputs.replica_id);
 
-        let mut replica_parents: Vec<_> = proof
+        let replica_parents: Vec<_> = proof
             .replica_parents
             .iter()
             .map(|parents| {
@@ -280,10 +271,7 @@ where
             })
             .collect();
 
-        // ensure we have the full set of challenges filled
-        replica_parents.resize(challenges, vec![None; degree]);
-
-        let mut replica_parents_paths: Vec<Vec<_>> = proof
+        let replica_parents_paths: Vec<Vec<_>> = proof
             .replica_parents
             .iter()
             .map(|parents| {
@@ -295,26 +283,17 @@ where
             })
             .collect();
 
-        // ensure we have the full set of challenges filled
-        replica_parents_paths.resize(challenges, vec![vec![None; depth]; degree]);
-
-        let mut data_nodes: Vec<_> = proof
+        let data_nodes: Vec<_> = proof
             .nodes
             .iter()
             .map(|node| Some(node.data.into()))
             .collect();
 
-        // ensure we have the full set of challenges filled
-        data_nodes.resize(challenges, None);
-
-        let mut data_nodes_paths: Vec<_> = proof
+        let data_nodes_paths: Vec<_> = proof
             .nodes
             .iter()
             .map(|node| node.proof.as_options())
             .collect();
-
-        // ensure we have the full set of challenges filled
-        data_nodes_paths.resize(challenges, vec![None; depth]);
 
         assert_eq!(
             public_inputs.tau.is_none(),
@@ -468,12 +447,6 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
             assert_eq!(data_node_path.len(), replica_node_path.len());
             assert_eq!(replica_node.is_some(), data_node.is_some());
-
-            // TODO: validate this is okay to do and does not compromise security
-            // We might have less challenges then the circuit is capabable of handling, skipping those here.
-            if replica_node.is_none() {
-                continue;
-            }
 
             // Inclusion checks
             {

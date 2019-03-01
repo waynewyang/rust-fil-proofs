@@ -83,13 +83,13 @@ impl<'a, H: Hasher> ZigZagCircuit<'a, Bls12, H> {
 
 impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
     fn synthesize<CS: ConstraintSystem<Bls12>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let graph = self.public_params.drg_porep_public_params.graph.clone();
+        let graph = &self.public_params.drg_porep_public_params.graph;
+        let layer_challenges = &self.public_params.layer_challenges;
+        let sloth_iter = self.public_params.drg_porep_public_params.sloth_iter;
+
         let mut crs_input = vec![0u8; 32 * (self.layers.len() + 1)];
 
-        assert_eq!(
-            self.public_params.layer_challenges.layers(),
-            self.layers.len()
-        );
+        assert_eq!(layer_challenges.layers(), self.layers.len());
 
         if let Some(ref l) = self.layers[0] {
             l.0.replica_id
@@ -138,7 +138,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                 None => drgporep::Proof::new_empty(
                     height,
                     graph.degree(),
-                    self.public_params.layer_challenges.challenges_for_layer(l),
+                    layer_challenges.challenges_for_layer(l),
                 ),
             };
             dbg!("after proof");
@@ -167,6 +167,13 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
 
             // TODO: As an optimization, we may be able to skip proving the original data
             // on some (50%?) of challenges.
+
+            let porep_params = drgporep::PublicParams::new(
+                graph.clone(), // TODO: avoid
+                sloth_iter,
+                true,
+                layer_challenges.challenges_for_layer(l),
+            );
             let circuit = if let Some(public_inputs) = public_inputs {
                 dbg!("regular");
                 DrgPoRepCompound::circuit(
@@ -176,15 +183,12 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                         comm_r: Some(comm_r_var),
                     },
                     &proof,
-                    &self.public_params.drg_porep_public_params,
+                    &porep_params,
                     self.params,
                 )
             } else {
                 dbg!("blank");
-                DrgPoRepCompound::blank_circuit(
-                    &self.public_params.drg_porep_public_params,
-                    &self.params,
-                )
+                DrgPoRepCompound::blank_circuit(&porep_params, &self.params)
             };
             dbg!("synthesize porep");
             circuit.synthesize(&mut cs.namespace(|| format!("zigzag layer {}", l)))?;
