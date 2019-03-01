@@ -116,9 +116,13 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
         // Yuck. This will never be used, but we need an initial value to satisfy the compiler.
         let mut previous_comm_r_var = Root::Val(self.tau.map(|t| t.comm_d.into()));
 
+        dbg!(self.layers.len());
         for (l, v) in self.layers.iter().enumerate() {
+            dbg!(l);
             let public_inputs = v.as_ref().map(|v| &v.0);
             let layer_proof = v.as_ref().map(|v| &v.1);
+            dbg!(public_inputs.is_some());
+            dbg!(layer_proof.is_some());
 
             let is_first_layer = l == 0;
             let is_last_layer = l == self.layers.len() - 1;
@@ -137,7 +141,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                     self.public_params.layer_challenges.challenges_for_layer(l),
                 ),
             };
-
+            dbg!("after proof");
             let comm_r = proof.replica_root;
 
             let comm_d_var = if is_first_layer {
@@ -156,6 +160,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
             };
             previous_comm_r_var = comm_r_var.clone();
 
+            dbg!("write commr");
             comm_r
                 .write_bytes(&mut crs_input[(l + 1) * 32..(l + 2) * 32])
                 .expect("failed to write vec");
@@ -163,6 +168,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
             // TODO: As an optimization, we may be able to skip proving the original data
             // on some (50%?) of challenges.
             let circuit = if let Some(public_inputs) = public_inputs {
+                dbg!("regular");
                 DrgPoRepCompound::circuit(
                     &public_inputs,
                     ComponentPrivateInputs {
@@ -174,13 +180,17 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                     self.params,
                 )
             } else {
+                dbg!("blank");
                 DrgPoRepCompound::blank_circuit(
                     &self.public_params.drg_porep_public_params,
                     &self.params,
                 )
             };
+            dbg!("synthesize porep");
             circuit.synthesize(&mut cs.namespace(|| format!("zigzag layer {}", l)))?;
         }
+
+        println!("after loop");
 
         let crs_boolean = bytes_into_boolean_vec(
             cs.namespace(|| "comm_r_star boolean"),
@@ -242,10 +252,10 @@ impl<'a, H: 'static + Hasher>
             pub_params.drg_porep_public_params.challenges_count,
         );
 
-        let comm_d = pub_in.tau.unwrap().comm_d.into();
+        let comm_d = pub_in.tau.expect("missing tau").comm_d.into();
         inputs.push(comm_d);
 
-        let comm_r = pub_in.tau.unwrap().comm_r.into();
+        let comm_r = pub_in.tau.expect("missing tau").comm_r.into();
         inputs.push(comm_r);
 
         for i in 0..pub_params.layer_challenges.layers() {
@@ -453,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn zigzag_input_circuit_num_constraints() {
+    fn zigzag_input_circuit_num_constraints_fixed() {
         let params = &JubjubBls12::new();
         let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
 
@@ -509,6 +519,69 @@ mod tests {
             rng.gen(),
         )
         .expect("failed to synthesize circuit");
+        assert!(cs.is_satisfied(), "TestContraintSystem was not satisfied");
+
+        assert_eq!(cs.num_inputs(), 18, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 547539, "wrong number of constraints");
+    }
+
+    #[test]
+    fn zigzag_input_circuit_num_constraints_tapered() {
+        let params = &JubjubBls12::new();
+        let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+
+        let n = (1024 * 1024) / 32;
+        let num_layers = 2;
+        let base_degree = 2;
+        let expansion_degree = 2;
+        let layer_challenges = LayerChallenges::new_tapered(num_layers, 3, 2, 1.0 / 3.0);
+        let sloth_iter = 2;
+        let challenge = 1;
+        let replica_id: Fr = rng.gen();
+
+        let mut cs = TestConstraintSystem::<Bls12>::new();
+        let graph = ZigZagGraph::new_zigzag(n, base_degree, expansion_degree, new_seed());
+        let height = graph.merkle_tree_depth() as usize;
+
+        let layers = (0..num_layers)
+            .map(|l| {
+                // l is ignored because we assume uniform layers here.
+                let public_inputs = drgporep::PublicInputs {
+                    replica_id: replica_id.into(),
+                    challenges: vec![challenge; layer_challenges.challenges_for_layer(l)],
+                    tau: None,
+                };
+                let proof = drgporep::Proof::new_empty(
+                    height,
+                    graph.degree(),
+                    layer_challenges.challenges_for_layer(l),
+                );
+                Some((public_inputs, proof))
+            })
+            .collect();
+        let public_params = layered_drgporep::PublicParams {
+            drg_porep_public_params: drgporep::PublicParams::new(
+                graph,
+                sloth_iter,
+                true,
+                layer_challenges.max_challenges(),
+            ),
+            layer_challenges,
+        };
+
+        ZigZagCircuit::<Bls12, PedersenHasher>::synthesize(
+            cs.namespace(|| "zigzag_drgporep"),
+            params,
+            public_params,
+            layers,
+            Some(porep::Tau {
+                comm_r: rng.gen(),
+                comm_d: rng.gen(),
+            }),
+            rng.gen(),
+        )
+        .expect("failed to synthesize circuit");
+        assert!(cs.is_satisfied(), "TestContraintSystem was not satisfied");
 
         assert_eq!(cs.num_inputs(), 18, "wrong number of inputs");
         assert_eq!(cs.num_constraints(), 547539, "wrong number of constraints");
@@ -587,7 +660,7 @@ mod tests {
 
             let mut cs = TestConstraintSystem::new();
 
-            let _ = circuit.synthesize(&mut cs);
+            circuit.synthesize(&mut cs).expect("failed to synthesize");
 
             assert!(cs.is_satisfied(), "TestContraintSystem was not satisfied");
             assert!(
@@ -595,6 +668,7 @@ mod tests {
                 "verification failed with TestContraintSystem and generated inputs"
             );
         }
+
         let blank_groth_params =
             ZigZagCompound::groth_params(&public_params.vanilla_params, params).unwrap();
 

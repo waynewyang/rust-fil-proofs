@@ -142,6 +142,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
         let value = self.value;
         let auth_path = self.auth_path;
         let root = self.root;
+        dbg!("PoR");
 
         {
             let value_num = num::AllocatedNum::alloc(cs.namespace(|| "value"), || {
@@ -152,8 +153,10 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
 
             let mut auth_path_bits = Vec::with_capacity(auth_path.len());
 
+            dbg!("auth_path");
             // Ascend the merkle tree authentication path
             for (i, e) in auth_path.into_iter().enumerate() {
+                dbg!(i);
                 let cs = &mut cs.namespace(|| format!("merkle tree hash {}", i));
 
                 // Determines if the current subtree is the "right" leaf at this
@@ -199,10 +202,12 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
                 auth_path_bits.push(cur_is_right);
             }
 
+            dbg!("pack");
             // allocate input for is_right auth_path
             multipack::pack_into_inputs(cs.namespace(|| "path"), &auth_path_bits)?;
 
             {
+                dbg!("validate");
                 // Validate that the root of the merkle tree that we calculated is the same as the input.
 
                 let rt = Root::allocated(&root, cs.namespace(|| "root value"))?;
@@ -214,6 +219,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
                 }
             }
 
+            dbg!("end PoR");
             Ok(())
         }
     }
@@ -325,7 +331,7 @@ mod tests {
 
             let mut cs = TestConstraintSystem::new();
 
-            let _ = circuit.synthesize(&mut cs);
+            circuit.synthesize(&mut cs).expect("failed to synthesize");
             assert!(cs.is_satisfied());
             assert!(cs.verify(&inputs));
         }
@@ -396,6 +402,7 @@ mod tests {
             };
 
             por.synthesize(&mut cs).unwrap();
+            assert!(cs.is_satisfied(), "constraints not satisfied");
 
             assert_eq!(cs.num_inputs(), 3, "wrong number of inputs");
             assert_eq!(cs.num_constraints(), 4149, "wrong number of constraints");
@@ -491,7 +498,7 @@ mod tests {
 
                 let mut cs = TestConstraintSystem::new();
 
-                let _ = circuit.synthesize(&mut cs);
+                circuit.synthesize(&mut cs).expect("failed to synthesize");
 
                 assert!(cs.is_satisfied());
                 assert!(cs.verify(&inputs));
@@ -569,6 +576,7 @@ mod tests {
             };
 
             por.synthesize(&mut cs).unwrap();
+            assert!(cs.is_satisfied(), "constraints not satisfied");
 
             assert_eq!(cs.num_inputs(), 2, "wrong number of inputs");
             assert_eq!(cs.num_constraints(), 4148, "wrong number of constraints");

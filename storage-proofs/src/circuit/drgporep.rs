@@ -253,7 +253,7 @@ where
         replica_nodes_paths.resize(challenges, vec![None; depth]);
 
         let is_private = public_params.private;
-
+        dbg!("roots");
         let (data_root, replica_root) = if is_private {
             (
                 component_private_inputs.comm_d.expect("is_private"),
@@ -266,6 +266,7 @@ where
             )
         };
 
+        dbg!("replica_Id");
         let replica_id = Some(public_inputs.replica_id);
 
         let mut replica_parents: Vec<_> = proof
@@ -418,6 +419,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
         assert_eq!(self.data_nodes_paths.len(), nodes);
 
+        dbg!("replica_id");
         let raw_bytes; // Need let here so borrow in match lives long enough.
         let replica_id_bytes = match replica_id {
             Some(replica_id) => {
@@ -433,18 +435,27 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
         let replica_id_bits =
             bytes_into_boolean_vec(cs.namespace(|| "replica_id_bits"), replica_id_bytes, 256)?;
 
+        dbg!("pack");
         multipack::pack_into_inputs(
             cs.namespace(|| "replica_id"),
             &replica_id_bits[0..Fr::CAPACITY as usize],
         )?;
 
+        dbg!("root");
         let replica_root_num = replica_root.allocated(cs.namespace(|| "replica_root"))?;
         let replica_root_var = Root::Var(replica_root_num);
 
+        dbg!("data root");
         let data_root_num = data_root.allocated(cs.namespace(|| "data_root"))?;
         let data_root_var = Root::Var(data_root_num);
 
+        dbg!("loop");
+        dbg!(&self.replica_nodes);
+
+        dbg!(&self.data_nodes);
+
         for i in 0..self.data_nodes.len() {
+            dbg!(i);
             let mut cs = cs.namespace(|| format!("challenge_{}", i));
             // ensure that all inputs are well formed
             let replica_node_path = &self.replica_nodes_paths[i];
@@ -456,11 +467,18 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             let data_node = &self.data_nodes[i];
 
             assert_eq!(data_node_path.len(), replica_node_path.len());
+            assert_eq!(replica_node.is_some(), data_node.is_some());
+
+            // TODO: validate this is okay to do and does not compromise security
+            // We might have less challenges then the circuit is capabable of handling, skipping those here.
+            if replica_node.is_none() {
+                continue;
+            }
 
             // Inclusion checks
             {
                 let mut cs = cs.namespace(|| "inclusion_checks");
-
+                dbg!("por");
                 PoRCircuit::synthesize(
                     cs.namespace(|| "replica_inclusion"),
                     &params,
@@ -471,12 +489,14 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                 )?;
 
                 // validate each replica_parents merkle proof
-                for i in 0..replica_parents.len() {
+                dbg!("inner loop");
+                for j in 0..replica_parents.len() {
+                    dbg!(j);
                     PoRCircuit::synthesize(
-                        cs.namespace(|| format!("parents_inclusion_{}", i)),
+                        cs.namespace(|| format!("parents_inclusion_{}", j)),
                         &params,
-                        replica_parents[i],
-                        replica_parents_paths[i].clone(),
+                        replica_parents[j],
+                        replica_parents_paths[j].clone(),
                         replica_root_var.clone(),
                         self.private,
                     )?;
@@ -495,6 +515,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
             // Encoding checks
             {
+                dbg!("encoding");
                 let mut cs = cs.namespace(|| "encoding_checks");
                 // get the parents into bits
                 let parents_bits: Vec<Vec<Boolean>> = {
@@ -537,6 +558,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                     data_node.ok_or_else(|| SynthesisError::AssignmentMissing)
                 })?;
 
+                dbg!("constraint");
                 // ensure the encrypted data and data_node match
                 constraint::equal(&mut cs, || "equality", &expected, &decoded);
             }
@@ -834,7 +856,7 @@ mod tests {
 
         let mut cs = TestConstraintSystem::new();
 
-        let _ = circuit.synthesize(&mut cs);
+        circuit.synthesize(&mut cs).expect("failed to synthesize");
         assert!(cs.is_satisfied());
         assert!(cs.verify(&inputs));
 

@@ -599,7 +599,7 @@ mod tests {
 
         let mut cs = TestConstraintSystem::new();
 
-        let _ = circuit.synthesize(&mut cs);
+        circuit.synthesize(&mut cs).expect("failed to synthesize");
         assert!(cs.is_satisfied());
         assert!(cs.verify(&inputs));
 

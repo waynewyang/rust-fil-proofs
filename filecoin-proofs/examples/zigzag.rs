@@ -322,6 +322,8 @@ fn do_the_work<H: 'static>(
             .synthesize(&mut cs)
             .expect("failed to synthesize circuit");
 
+            assert!(cs.is_satisfied(), "constraints not satisfied");
+
             info!(FCP_LOG, "circuit_num_inputs: {}", cs.num_inputs(); "target" => "stats");
             info!(FCP_LOG, "circuit_num_constraints: {}", cs.num_constraints(); "target" => "stats");
 
