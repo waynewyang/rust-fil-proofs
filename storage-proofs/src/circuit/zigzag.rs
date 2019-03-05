@@ -221,6 +221,8 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
 
         public_comm_r_star.inputize(cs.namespace(|| "zigzag comm_r_star"))?;
 
+        println!("zigzag synth done");
+
         Ok(())
     }
 }
