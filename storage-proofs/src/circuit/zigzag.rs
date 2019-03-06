@@ -12,12 +12,11 @@ use crate::circuit::variables::Root;
 use crate::compound_proof::{CircuitComponent, CompoundProof};
 use crate::drgporep::{self, DrgPoRep};
 use crate::drgraph::{graph_height, Graph};
-use crate::hasher::{Domain, Hasher};
+use crate::hasher::Hasher;
 use crate::layered_drgporep::{self, Layers as LayersTrait};
 use crate::parameter_cache::{CacheableParameters, ParameterSetIdentifier};
 use crate::porep;
 use crate::proof::ProofScheme;
-use crate::util::bytes_into_boolean_vec;
 use crate::zigzag_drgporep::ZigZagDrgPoRep;
 
 type Layers<'a, H, G> = Vec<
@@ -99,34 +98,34 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                 .ok_or_else(|| SynthesisError::AssignmentMissing)
         })?;
 
-        let public_comm_d =
-            num::AllocatedNum::alloc(cs.namespace(|| "public comm_d value"), || {
-                let opt: Option<_> = self.tau.map(|t| t.comm_d.into());
-                opt.ok_or_else(|| SynthesisError::AssignmentMissing)
-            })?;
+        // allocate comm_d
+        let public_comm_d = num::AllocatedNum::alloc(cs.namespace(|| "public_comm_d"), || {
+            let opt: Option<_> = self.tau.map(|t| t.comm_d.into());
+            opt.ok_or_else(|| SynthesisError::AssignmentMissing)
+        })?;
 
-        public_comm_d.inputize(cs.namespace(|| "zigzag comm_d"))?;
+        // make comm_d a public input
+        public_comm_d.inputize(cs.namespace(|| "zigzag_comm_d"))?;
 
-        let public_comm_r =
-            num::AllocatedNum::alloc(cs.namespace(|| "public comm_r value"), || {
-                let opt: Option<_> = self.tau.map(|t| t.comm_r.into());
-                opt.ok_or_else(|| SynthesisError::AssignmentMissing)
-            })?;
+        // allocate comm_r
+        let public_comm_r = num::AllocatedNum::alloc(cs.namespace(|| "public_comm_r"), || {
+            let opt: Option<_> = self.tau.map(|t| t.comm_r.into());
+            opt.ok_or_else(|| SynthesisError::AssignmentMissing)
+        })?;
 
-        public_comm_r.inputize(cs.namespace(|| "zigzag comm_r"))?;
+        // make comm_r a public input
+        public_comm_r.inputize(cs.namespace(|| "zigzag_comm_r"))?;
 
-        dbg!(self.layers.len());
         for (l, v) in self.layers.iter().enumerate() {
-            dbg!(l);
             let public_inputs = v.as_ref().map(|v| &v.0);
             let layer_proof = v.as_ref().map(|v| &v.1);
-            dbg!(public_inputs.is_some());
-            dbg!(layer_proof.is_some());
 
             let is_first_layer = l == 0;
             let is_last_layer = l == self.layers.len() - 1;
 
             let height = graph_height(graph.size());
+
+            // Get the matching proof for this layer.
             let proof = match layer_proof {
                 Some(wrapped_proof) => {
                     let typed_proof: drgporep::Proof<<ZigZagDrgPoRep<H> as LayersTrait>::Hasher> =
@@ -141,16 +140,21 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                 ),
             };
 
-            dbg!("after proof");
+            // Get the comm_d for this layer.
             let comm_d = if is_first_layer {
+                // On the first layer this is the publicly input comm_d.
                 public_comm_d.clone()
             } else {
+                // On all other layers this is the comm_r from the previous layer.
                 comm_rs[l - 1].clone()
             };
 
+            // Get the comm_r for this layer.
             let comm_r = if is_last_layer {
+                // On the last layer this is the publicly input comm_r.
                 public_comm_r.clone()
             } else {
+                // On all other layers this is the replica root from current layer proof.
                 num::AllocatedNum::alloc(
                     &mut cs.namespace(|| format!("layer {} comm_r", l)),
                     || {
@@ -161,19 +165,24 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                 )?
             };
 
+            // Store the comm_r so we can use it in for the next layer, as well as when calculating comm_r_star.
             comm_rs.push(comm_r.clone());
 
             // TODO: As an optimization, we may be able to skip proving the original data
             // on some (50%?) of challenges.
 
+            // Construct the public parameters for DrgPoRep.
             let porep_params = drgporep::PublicParams::new(
                 graph.clone(), // TODO: avoid
                 sloth_iter,
                 true,
                 layer_challenges.challenges_for_layer(l),
             );
+
+            assert_eq!(layer_proof.is_none(), public_inputs.is_none());
+
+            // Construct the DrgPoRep circut.
             let circuit = if let Some(public_inputs) = public_inputs {
-                dbg!("regular");
                 DrgPoRepCompound::circuit(
                     &public_inputs,
                     ComponentPrivateInputs {
@@ -185,14 +194,12 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                     self.params,
                 )
             } else {
-                dbg!("blank");
                 DrgPoRepCompound::blank_circuit(&porep_params, &self.params)
             };
-            dbg!("synthesize porep");
-            circuit.synthesize(&mut cs.namespace(|| format!("zigzag layer {}", l)))?;
-        }
 
-        println!("after loop");
+            // Synthesize the constructed DrgPoRep circuit.
+            circuit.synthesize(&mut cs.namespace(|| format!("zigzag_layer_#{}", l)))?;
+        }
 
         // Compute CommRStar = Hash(replica_id | comm_r_0 | ... | comm_r_l).
         {
@@ -214,7 +221,6 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                 }
             }
 
-            dbg!(crs_boolean.len());
             // Calculate the pedersen hash.
             let computed_comm_r_star = pedersen_md_no_padding(
                 cs.namespace(|| "comm_r_star"),
@@ -240,6 +246,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
 
             // Make it a public input.
             public_comm_r_star.inputize(cs.namespace(|| "zigzag comm_r_star"))?;
+            dbg!(public_comm_r_star.get_value());
         }
 
         println!("zigzag synth done");
@@ -298,9 +305,7 @@ impl<'a, H: 'static + Hasher>
                 ),
                 tau: None,
             };
-            if layer != layers - 1 {
-                // inputs.push(comm_r);
-            }
+
             let drgporep_inputs = DrgPoRepCompound::generate_public_inputs(
                 &drgporep_pub_inputs,
                 &drgporep_pub_params,
@@ -352,15 +357,12 @@ impl<'a, H: 'static + Hasher>
         public_params: &<ZigZagDrgPoRep<H> as ProofScheme>::PublicParams,
         params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> ZigZagCircuit<'a, Bls12, H> {
-        let layers = vec![None; public_params.layer_challenges.layers()];
-        let pp: <ZigZagDrgPoRep<H> as ProofScheme>::PublicParams = public_params.into();
-
         ZigZagCircuit {
             params,
-            public_params: pp,
+            public_params: public_params.clone(),
             tau: None,
             comm_r_star: None,
-            layers,
+            layers: vec![None; public_params.layer_challenges.layers()],
             _e: PhantomData,
         }
     }
@@ -378,7 +380,6 @@ mod tests {
     use crate::layered_drgporep::{self, LayerChallenges};
     use crate::porep::PoRep;
     use crate::proof::ProofScheme;
-    use crate::zigzag_graph::{ZigZag, ZigZagGraph};
 
     use pairing::Field;
     use rand::{Rng, SeedableRng, XorShiftRng};
