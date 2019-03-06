@@ -20,7 +20,7 @@ use storage_proofs::circuit::multi_proof::MultiProof;
 use storage_proofs::circuit::vdf_post::{VDFPoStCircuit, VDFPostCompound};
 use storage_proofs::circuit::zigzag::ZigZagCompound;
 use storage_proofs::compound_proof::{self, CompoundProof};
-use storage_proofs::drgporep::{self, DrgParams};
+use storage_proofs::drgporep::DrgParams;
 use storage_proofs::drgraph::{DefaultTreeHasher, Graph};
 use storage_proofs::fr32::{bytes_into_fr, fr_into_bytes, Fr32Ary};
 use storage_proofs::hasher::pedersen::{PedersenDomain, PedersenHasher};
@@ -219,17 +219,13 @@ fn setup_params(sector_bytes: PaddedBytesAmount) -> layered_drgporep::SetupParam
     );
     let nodes = sector_bytes / 32;
     layered_drgporep::SetupParams {
-        drg_porep_setup_params: drgporep::SetupParams {
-            drg: DrgParams {
-                nodes,
-                degree: DEGREE,
-                expansion_degree: EXPANSION_DEGREE,
-                seed: DRG_SEED,
-            },
-            sloth_iter: SLOTH_ITER,
-            private: true,
-            challenges_count: CHALLENGES.max_challenges(),
+        drg: DrgParams {
+            nodes,
+            degree: DEGREE,
+            expansion_degree: EXPANSION_DEGREE,
+            seed: DRG_SEED,
         },
+        sloth_iter: SLOTH_ITER,
         layer_challenges: CHALLENGES.clone(),
     }
 }
@@ -454,9 +450,7 @@ fn make_merkle_tree<T: Into<PathBuf> + AsRef<Path>>(
     let mut data = Vec::new();
     f_in.read_to_end(&mut data)?;
 
-    let g = public_params(bytes).drg_porep_public_params.graph;
-
-    g.merkle_tree(&data)
+    public_params(bytes).graph.merkle_tree(&data)
 }
 
 pub struct SealOutput {

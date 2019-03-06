@@ -83,9 +83,9 @@ impl<'a, H: Hasher> ZigZagCircuit<'a, Bls12, H> {
 
 impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
     fn synthesize<CS: ConstraintSystem<Bls12>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let graph = &self.public_params.drg_porep_public_params.graph;
+        let graph = &self.public_params.graph;
         let layer_challenges = &self.public_params.layer_challenges;
-        let sloth_iter = self.public_params.drg_porep_public_params.sloth_iter;
+        let sloth_iter = self.public_params.sloth_iter;
 
         let mut crs_input = vec![0u8; 32 * (self.layers.len() + 1)];
 
@@ -251,30 +251,33 @@ impl<'a, H: 'static + Hasher>
     ) -> Vec<Fr> {
         let mut inputs = Vec::new();
 
-        let mut drgporep_pub_params = drgporep::PublicParams::new(
-            pub_params.drg_porep_public_params.graph.clone(),
-            pub_params.drg_porep_public_params.sloth_iter,
-            pub_params.drg_porep_public_params.private,
-            pub_params.drg_porep_public_params.challenges_count,
-        );
-
         let comm_d = pub_in.tau.expect("missing tau").comm_d.into();
         inputs.push(comm_d);
 
         let comm_r = pub_in.tau.expect("missing tau").comm_r.into();
         inputs.push(comm_r);
 
-        for i in 0..pub_params.layer_challenges.layers() {
+        let mut current_graph = Some(pub_params.graph.clone());
+
+        for layer in 0..pub_params.layer_challenges.layers() {
+            let drgporep_pub_params = drgporep::PublicParams::new(
+                current_graph.take().unwrap(),
+                pub_params.sloth_iter,
+                true,
+                pub_params.layer_challenges.challenges_for_layer(layer),
+            );
+
             let drgporep_pub_inputs = drgporep::PublicInputs {
                 replica_id: pub_in.replica_id,
                 challenges: pub_in.challenges(
                     &pub_params.layer_challenges,
-                    pub_params.drg_porep_public_params.graph.size(),
-                    i as u8,
+                    pub_params.graph.size(),
+                    layer as u8,
                     k,
                 ),
                 tau: None,
             };
+
             let drgporep_inputs = DrgPoRepCompound::generate_public_inputs(
                 &drgporep_pub_inputs,
                 &drgporep_pub_params,
@@ -282,11 +285,9 @@ impl<'a, H: 'static + Hasher>
             );
             inputs.extend(drgporep_inputs);
 
-            drgporep_pub_params = <ZigZagDrgPoRep<H> as layered_drgporep::Layers>::transform(
-                &drgporep_pub_params,
-                i,
-                pub_params.layer_challenges.layers(),
-            );
+            current_graph = Some(<ZigZagDrgPoRep<H> as layered_drgporep::Layers>::transform(
+                &drgporep_pub_params.graph,
+            ));
         }
         inputs.push(pub_in.comm_r_star.into());
         inputs
@@ -384,17 +385,13 @@ mod tests {
         // create a copy, so we can compare roundtrips
         let mut data_copy = data.clone();
         let sp = layered_drgporep::SetupParams {
-            drg_porep_setup_params: drgporep::SetupParams {
-                drg: drgporep::DrgParams {
-                    nodes: n,
-                    degree,
-                    expansion_degree,
-                    seed: new_seed(),
-                },
-                sloth_iter,
-                private: true,
-                challenges_count: layer_challenges.max_challenges(),
+            drg: drgporep::DrgParams {
+                nodes: n,
+                degree,
+                expansion_degree,
+                seed: new_seed(),
             },
+            sloth_iter,
             layer_challenges: layer_challenges.clone(),
         };
 
@@ -503,15 +500,8 @@ mod tests {
                 Some((public_inputs, proof))
             })
             .collect();
-        let public_params = layered_drgporep::PublicParams {
-            drg_porep_public_params: drgporep::PublicParams::new(
-                graph,
-                sloth_iter,
-                true,
-                layer_challenges.max_challenges(),
-            ),
-            layer_challenges,
-        };
+        let public_params =
+            layered_drgporep::PublicParams::new(graph, sloth_iter, layer_challenges);
 
         ZigZagCircuit::<Bls12, PedersenHasher>::synthesize(
             cs.namespace(|| "zigzag_drgporep"),
@@ -565,15 +555,8 @@ mod tests {
                 Some((public_inputs, proof))
             })
             .collect();
-        let public_params = layered_drgporep::PublicParams {
-            drg_porep_public_params: drgporep::PublicParams::new(
-                graph,
-                sloth_iter,
-                true,
-                layer_challenges.max_challenges(),
-            ),
-            layer_challenges,
-        };
+        let public_params =
+            layered_drgporep::PublicParams::new(graph, sloth_iter, layer_challenges);
 
         ZigZagCircuit::<Bls12, PedersenHasher>::synthesize(
             cs.namespace(|| "zigzag_drgporep"),
@@ -622,17 +605,13 @@ mod tests {
         let setup_params = compound_proof::SetupParams {
             engine_params: params,
             vanilla_params: &layered_drgporep::SetupParams {
-                drg_porep_setup_params: drgporep::SetupParams {
-                    drg: drgporep::DrgParams {
-                        nodes: n,
-                        degree,
-                        expansion_degree,
-                        seed: new_seed(),
-                    },
-                    sloth_iter,
-                    private: true,
-                    challenges_count: layer_challenges.max_challenges(),
+                drg: drgporep::DrgParams {
+                    nodes: n,
+                    degree,
+                    expansion_degree,
+                    seed: new_seed(),
                 },
+                sloth_iter,
                 layer_challenges: layer_challenges.clone(),
             },
             partitions: Some(partition_count),

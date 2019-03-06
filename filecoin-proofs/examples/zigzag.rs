@@ -193,17 +193,13 @@ fn do_the_work<H: 'static>(
 
     let replica_id: H::Domain = rng.gen();
     let sp = layered_drgporep::SetupParams {
-        drg_porep_setup_params: drgporep::SetupParams {
-            drg: drgporep::DrgParams {
-                nodes,
-                degree: m,
-                expansion_degree,
-                seed: new_seed(),
-            },
-            sloth_iter,
-            private: true,
-            challenges_count: layer_challenges.max_challenges(),
+        drg: drgporep::DrgParams {
+            nodes,
+            degree: m,
+            expansion_degree,
+            seed: new_seed(),
         },
+        sloth_iter,
         layer_challenges: layer_challenges.clone(),
     };
 
