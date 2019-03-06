@@ -255,6 +255,8 @@ mod tests {
                     seed: new_seed(),
                 },
                 sloth_iter,
+                private: true,
+                challenges_count: layer_challenges.max_challenges(),
             },
             layer_challenges: layer_challenges.clone(),
         };

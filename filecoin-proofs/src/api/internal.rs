@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::{copy, remove_file, File, OpenOptions};
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
