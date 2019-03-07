@@ -302,7 +302,7 @@ pub trait Layers {
                     .into_par_iter()
                     .map(|k| {
                         let drgporep_pub_inputs = drgporep::PublicInputs {
-                            replica_id: pub_inputs.replica_id,
+                            replica_id: Some(pub_inputs.replica_id),
                             challenges: pub_inputs.challenges(
                                 layer_challenges,
                                 graph_size,
@@ -588,7 +588,7 @@ impl<'a, L: Layers> ProofScheme<'a> for L {
                     pub_params.layer_challenges.challenges_for_layer(layer),
                 );
                 let new_pub_inputs = drgporep::PublicInputs {
-                    replica_id: pub_inputs.replica_id,
+                    replica_id: Some(pub_inputs.replica_id),
                     challenges: pub_inputs.challenges(
                         &pub_params.layer_challenges,
                         graph_size,

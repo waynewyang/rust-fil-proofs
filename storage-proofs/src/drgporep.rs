@@ -15,7 +15,7 @@ use crate::vde::{self, decode_block, decode_domain_block};
 
 #[derive(Debug, Clone)]
 pub struct PublicInputs<T: Domain> {
-    pub replica_id: T,
+    pub replica_id: Option<T>,
     pub challenges: Vec<usize>,
     pub tau: Option<porep::Tau<T>>,
 }
@@ -164,8 +164,6 @@ pub struct Proof<H: Hasher> {
 }
 
 impl<H: Hasher> Proof<H> {
-    // FIXME: should we also take a number of challenges here and construct
-    // vectors of that length?
     pub fn new_empty(height: usize, degree: usize, challenges: usize) -> Proof<H> {
         Proof {
             data_root: Default::default(),
@@ -325,7 +323,7 @@ where
                 let extracted = decode_domain_block::<H>(
                     pub_params.graph.degree(),
                     pub_params.sloth_iter,
-                    &pub_inputs.replica_id,
+                    &pub_inputs.replica_id.expect("missing replica_id"),
                     domain_replica,
                     challenge,
                     parents,
@@ -388,18 +386,19 @@ where
             assert_ne!(challenge, 0, "cannot prove the first node");
 
             if !proof.replica_nodes[i].proof.validate(challenge) {
-                println!("invalid replica node");
                 return Ok(false);
             }
 
             for (parent_node, p) in &proof.replica_parents[i] {
                 if !p.proof.validate(*parent_node) {
-                    println!("invalid replica parent: {:?}", p);
                     return Ok(false);
                 }
             }
 
-            let prover_bytes = &pub_inputs.replica_id.into_bytes();
+            let prover_bytes = &pub_inputs
+                .replica_id
+                .expect("missing replica_id")
+                .into_bytes();
 
             let key_input =
                 proof.replica_parents[i]
@@ -658,7 +657,7 @@ mod tests {
             assert_ne!(data, copied, "replication did not change data");
 
             let pub_inputs = PublicInputs::<H::Domain> {
-                replica_id,
+                replica_id: Some(replica_id),
                 challenges: vec![challenge, challenge],
                 tau: Some(tau.clone().into()),
             };
@@ -737,7 +736,7 @@ mod tests {
 
             if use_wrong_challenge {
                 let pub_inputs_with_wrong_challenge_for_proof = PublicInputs::<H::Domain> {
-                    replica_id,
+                    replica_id: Some(replica_id),
                     challenges: vec![if challenge == 1 { 2 } else { 1 }],
                     tau: Some(tau.into()),
                 };

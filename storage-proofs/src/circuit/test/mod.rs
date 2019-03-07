@@ -387,6 +387,7 @@ impl<E: Engine> ConstraintSystem<E> for TestConstraintSystem<E> {
         let index = self.aux.len();
         let path = compute_path(&self.current_namespace, &annotation().into());
         self.aux.push((f()?, path.clone()));
+        // self.aux.push((E::Fr::zero(), path.clone()));
         let var = Variable::new_unchecked(Index::Aux(index));
         self.set_named_obj(path, NamedObject::Var(var));
 
@@ -402,6 +403,7 @@ impl<E: Engine> ConstraintSystem<E> for TestConstraintSystem<E> {
         let index = self.inputs.len();
         let path = compute_path(&self.current_namespace, &annotation().into());
         self.inputs.push((f()?, path.clone()));
+        // self.inputs.push((E::Fr::zero(), path.clone()));
         let var = Variable::new_unchecked(Index::Input(index));
         self.set_named_obj(path, NamedObject::Var(var));
 

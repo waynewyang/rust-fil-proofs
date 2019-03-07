@@ -11,7 +11,7 @@ use crate::circuit::pedersen::pedersen_md_no_padding;
 use crate::circuit::variables::Root;
 use crate::compound_proof::{CircuitComponent, CompoundProof};
 use crate::drgporep::{self, DrgPoRep};
-use crate::drgraph::{graph_height, Graph};
+use crate::drgraph::Graph;
 use crate::hasher::Hasher;
 use crate::layered_drgporep::{self, Layers as LayersTrait};
 use crate::parameter_cache::{CacheableParameters, ParameterSetIdentifier};
@@ -91,7 +91,7 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
         let mut comm_rs: Vec<num::AllocatedNum<_>> = Vec::with_capacity(self.layers.len());
 
         // allocate replica id
-        let replica_id = self.layers[0].as_ref().map(|l| l.0.replica_id);
+        let replica_id = self.layers[0].as_ref().and_then(|l| l.0.replica_id);
         let replica_id_num = num::AllocatedNum::alloc(cs.namespace(|| "replica_id"), || {
             replica_id
                 .map(Into::into)
@@ -116,14 +116,14 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
         // make comm_r a public input
         public_comm_r.inputize(cs.namespace(|| "zigzag_comm_r"))?;
 
+        let height = graph.merkle_tree_depth() as usize;
+
         for (l, v) in self.layers.iter().enumerate() {
             let public_inputs = v.as_ref().map(|v| &v.0);
             let layer_proof = v.as_ref().map(|v| &v.1);
 
             let is_first_layer = l == 0;
             let is_last_layer = l == self.layers.len() - 1;
-
-            let height = graph_height(graph.size());
 
             // Get the matching proof for this layer.
             let proof = match layer_proof {
@@ -132,7 +132,6 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
                         wrapped_proof.into();
                     typed_proof
                 }
-                // Synthesize a default drgporep if none is supplied – for use in tests, etc.
                 None => drgporep::Proof::new_empty(
                     height,
                     graph.degree(),
@@ -182,20 +181,25 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
             assert_eq!(layer_proof.is_none(), public_inputs.is_none());
 
             // Construct the DrgPoRep circut.
-            let circuit = if let Some(public_inputs) = public_inputs {
-                DrgPoRepCompound::circuit(
-                    &public_inputs,
-                    ComponentPrivateInputs {
-                        comm_d: Some(Root::Var(comm_d)),
-                        comm_r: Some(Root::Var(comm_r)),
-                    },
-                    &proof,
-                    &porep_params,
-                    self.params,
-                )
-            } else {
-                DrgPoRepCompound::blank_circuit(&porep_params, &self.params)
+            let pi = match public_inputs {
+                Some(inputs) => inputs.clone(), // FIXME: avoid cloning
+                None => drgporep::PublicInputs {
+                    replica_id: None,
+                    // These are ignored, so fine to pass `0` through.
+                    challenges: vec![0; layer_challenges.challenges_for_layer(l)],
+                    tau: None,
+                },
             };
+            let circuit = DrgPoRepCompound::circuit(
+                &pi,
+                ComponentPrivateInputs {
+                    comm_d: Some(Root::Var(comm_d)),
+                    comm_r: Some(Root::Var(comm_r)),
+                },
+                &proof,
+                &porep_params,
+                self.params,
+            );
 
             // Synthesize the constructed DrgPoRep circuit.
             circuit.synthesize(&mut cs.namespace(|| format!("zigzag_layer_#{}", l)))?;
@@ -246,7 +250,6 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
 
             // Make it a public input.
             public_comm_r_star.inputize(cs.namespace(|| "zigzag comm_r_star"))?;
-            dbg!(public_comm_r_star.get_value());
         }
 
         println!("zigzag synth done");
@@ -296,7 +299,7 @@ impl<'a, H: 'static + Hasher>
             );
 
             let drgporep_pub_inputs = drgporep::PublicInputs {
-                replica_id: pub_in.replica_id,
+                replica_id: Some(pub_in.replica_id),
                 challenges: pub_in.challenges(
                     &pub_params.layer_challenges,
                     pub_params.graph.size(),
@@ -331,7 +334,7 @@ impl<'a, H: 'static + Hasher>
         let layers = (0..(vanilla_proof.encoding_proofs.len()))
             .map(|l| {
                 let layer_public_inputs = drgporep::PublicInputs {
-                    replica_id: public_inputs.replica_id,
+                    replica_id: Some(public_inputs.replica_id),
                     // Challenges are not used in circuit synthesis. Don't bother generating.
                     challenges: vec![],
                     tau: None,
@@ -631,6 +634,33 @@ mod tests {
                 "verification failed with TestContraintSystem and generated inputs"
             );
         }
+
+        let blank_circuit = ZigZagCompound::blank_circuit(&public_params.vanilla_params, params);
+        let (circuit1, _inputs) =
+            ZigZagCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
+        // let blank_groth_params =
+        //     ZigZagCompound::get_groth_params(circuit, &public_params.vanilla_params).unwrap();
+
+        // {
+        //     let mut cs_blank = TestConstraintSystem::new();
+        //     blank_circuit
+        //         .synthesize(&mut cs_blank)
+        //         .expect("failed to synthesize");
+
+        //     let a = cs_blank.pretty_print();
+
+        //     let mut cs1 = TestConstraintSystem::new();
+        //     circuit1.synthesize(&mut cs1).expect("failed to synthesize");
+        //     let b = cs1.pretty_print();
+
+        //     let a_vec = a.split("\n").collect::<Vec<_>>();
+        //     let b_vec = b.split("\n").collect::<Vec<_>>();
+
+        //     for (i, (a, b)) in a_vec.chunks(100).zip(b_vec.chunks(100)).enumerate() {
+        //         println!("chunk {}", i);
+        //         assert_eq!(a, b);
+        //     }
+        // }
 
         println!("-- GROTH PARAMS");
         let blank_groth_params =

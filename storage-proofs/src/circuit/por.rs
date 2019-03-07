@@ -205,7 +205,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
             {
                 // Validate that the root of the merkle tree that we calculated is the same as the input.
 
-                let rt = Root::allocated(&root, cs.namespace(|| "root value"))?;
+                let rt = root.allocated(cs.namespace(|| "root_value"))?;
                 constraint::equal(cs, || "enforce root is correct", &cur, &rt);
 
                 if !self.private {
