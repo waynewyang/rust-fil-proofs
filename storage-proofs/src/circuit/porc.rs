@@ -170,10 +170,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for PoRCCircuit<'a, E> {
         for (i, (challenged_leaf, path)) in challenged_leafs.iter().zip(paths).enumerate() {
             let mut cs = cs.namespace(|| format!("challenge_{}", i));
 
-            let commitment = match challenged_sectors[i] {
-                Some(s) => commitments[s],
-                None => None,
-            };
+            let commitment = challenged_sectors[i].and_then(|s| commitments[s]);
 
             // Allocate the commitment
             let rt = num::AllocatedNum::alloc(cs.namespace(|| "commitment_num"), || {

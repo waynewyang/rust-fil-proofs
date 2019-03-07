@@ -624,11 +624,10 @@ mod tests {
             );
         }
 
+        // Use this to debug differences between blank and regular circuit generation.
         // let blank_circuit = ZigZagCompound::blank_circuit(&public_params.vanilla_params, params);
         // let (circuit1, _inputs) =
         // ZigZagCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
-        // let blank_groth_params =
-        //     ZigZagCompound::get_groth_params(circuit, &public_params.vanilla_params).unwrap();
 
         // {
         //     let mut cs_blank = TestConstraintSystem::new();

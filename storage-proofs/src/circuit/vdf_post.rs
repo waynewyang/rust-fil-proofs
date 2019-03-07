@@ -182,7 +182,7 @@ where
         let commitments_vec = vec![vec![None; challenge_count]; post_epochs];
         let vdf_xs = vec![None; post_epochs - 1];
         let vdf_ys = vec![None; post_epochs - 1];
-        let paths_vec = vec![vec![vec![None; challenge_bits + 1]; challenge_count]; post_epochs];
+        let paths_vec = vec![vec![vec![None; challenge_bits]; challenge_count]; post_epochs];
 
         VDFPoStCircuit {
             params: engine_params,
@@ -581,10 +581,6 @@ mod tests {
         let priv_inputs = //: vdf_post::PrivateInputs<PedersenHasher> =
             vdf_post::PrivateInputs::<PedersenHasher>::new(&trees[..]);
 
-        // Without the commented section below, this test doesn't do much.
-        // However, the test cannot pass until generate_public_inputs is implemented.
-        // That is currently blocked on a clearer sense of how the circuit should behave.
-
         let gparams: groth16::Parameters<_> =
             <VDFPostCompound as CompoundProof<
                 '_,
@@ -605,6 +601,36 @@ mod tests {
         circuit.synthesize(&mut cs).expect("failed to synthesize");
         assert!(cs.is_satisfied());
         assert!(cs.verify(&inputs));
+
+        // Use this to debug differences between blank and regular circuit generation.
+        // {
+        //     let blank_circuit = <VDFPostCompound as CompoundProof<
+        //         Bls12,
+        //         VDFPoSt<PedersenHasher, _>,
+        //         VDFPoStCircuit<Bls12>,
+        //     >>::blank_circuit(&pub_params.vanilla_params, params);
+        //     let (circuit1, _inputs) =
+        //         VDFPostCompound::circuit_for_test(&pub_params, &pub_inputs, &priv_inputs);
+
+        //     let mut cs_blank = TestConstraintSystem::new();
+        //     blank_circuit
+        //         .synthesize(&mut cs_blank)
+        //         .expect("failed to synthesize");
+
+        //     let a = cs_blank.pretty_print();
+
+        //     let mut cs1 = TestConstraintSystem::new();
+        //     circuit1.synthesize(&mut cs1).expect("failed to synthesize");
+        //     let b = cs1.pretty_print();
+
+        //     let a_vec = a.split("\n").collect::<Vec<_>>();
+        //     let b_vec = b.split("\n").collect::<Vec<_>>();
+
+        //     for (i, (a, b)) in a_vec.chunks(100).zip(b_vec.chunks(100)).enumerate() {
+        //         println!("chunk {}", i);
+        //         assert_eq!(a, b);
+        //     }
+        // }
 
         let verified = VDFPostCompound::verify(&pub_params, &pub_inputs, &proof)
             .expect("failed while verifying");
