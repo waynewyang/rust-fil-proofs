@@ -99,7 +99,7 @@ fn do_the_work<H: Hasher>(data_size: usize, m: usize, sloth_iter: usize, challen
         DrgPoRep::<H, _>::replicate(&pp, &replica_id, data.as_mut_slice(), None).unwrap();
     stop_profile();
     let pub_inputs = PublicInputs {
-        replica_id,
+        replica_id: Some(replica_id),
         challenges,
         tau: Some(tau),
     };

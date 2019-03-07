@@ -474,17 +474,17 @@ mod tests {
         assert_eq!(cs.get_input(0, "ONE"), Fr::one());
 
         assert_eq!(
-            cs.get_input(1, "zigzag drgporep/zigzag comm_d/input variable"),
+            cs.get_input(1, "zigzag drgporep/zigzag_comm_d/input variable"),
             simplified_tau.comm_d.into(),
         );
 
         assert_eq!(
-            cs.get_input(2, "zigzag drgporep/zigzag comm_r/input variable"),
+            cs.get_input(2, "zigzag drgporep/zigzag_comm_r/input variable"),
             simplified_tau.comm_r.into(),
         );
 
         assert_eq!(
-            cs.get_input(3, "zigzag drgporep/zigzag layer 0/replica_id/input 0"),
+            cs.get_input(3, "zigzag drgporep/zigzag_layer_#0/replica_id/input 0"),
             replica_id.into(),
         );
 
@@ -635,9 +635,9 @@ mod tests {
             );
         }
 
-        let blank_circuit = ZigZagCompound::blank_circuit(&public_params.vanilla_params, params);
-        let (circuit1, _inputs) =
-            ZigZagCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
+        // let blank_circuit = ZigZagCompound::blank_circuit(&public_params.vanilla_params, params);
+        // let (circuit1, _inputs) =
+        // ZigZagCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
         // let blank_groth_params =
         //     ZigZagCompound::get_groth_params(circuit, &public_params.vanilla_params).unwrap();
 
