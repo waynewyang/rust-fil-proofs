@@ -252,8 +252,6 @@ impl<'a, H: Hasher> Circuit<Bls12> for ZigZagCircuit<'a, Bls12, H> {
             public_comm_r_star.inputize(cs.namespace(|| "zigzag comm_r_star"))?;
         }
 
-        println!("zigzag synth done");
-
         Ok(())
     }
 }
@@ -460,13 +458,6 @@ mod tests {
         .synthesize(&mut cs.namespace(|| "zigzag drgporep"))
         .expect("failed to synthesize circuit");
 
-        if !cs.is_satisfied() {
-            println!(
-                "failed to satisfy: {:?}",
-                cs.which_is_unsatisfied().unwrap()
-            );
-        }
-
         assert!(cs.is_satisfied(), "constraints not satisfied");
         assert_eq!(cs.num_inputs(), 16, "wrong number of inputs");
         assert_eq!(cs.num_constraints(), 131094, "wrong number of constraints");
@@ -591,7 +582,6 @@ mod tests {
             partitions: Some(partition_count),
         };
 
-        println!("-- REPLICATE");
         let public_params = ZigZagCompound::setup(&setup_params).unwrap();
         let (tau, aux) = ZigZagDrgPoRep::replicate(
             &public_params.vanilla_params,
@@ -615,7 +605,6 @@ mod tests {
 
         // TOOD: Move this to e.g. circuit::test::compound_helper and share between all compound proofs.
         {
-            println!("-- CIRCUIT FOR TEST");
             let (circuit, inputs) =
                 ZigZagCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
 
@@ -624,7 +613,7 @@ mod tests {
             circuit.synthesize(&mut cs).expect("failed to synthesize");
 
             if !cs.is_satisfied() {
-                println!(
+                panic!(
                     "failed to satisfy: {:?}",
                     cs.which_is_unsatisfied().unwrap()
                 );
@@ -662,11 +651,9 @@ mod tests {
         //     }
         // }
 
-        println!("-- GROTH PARAMS");
         let blank_groth_params =
             ZigZagCompound::groth_params(&public_params.vanilla_params, params).unwrap();
 
-        println!("-- PROVE");
         let proof = ZigZagCompound::prove(
             &public_params,
             &public_inputs,
@@ -674,7 +661,7 @@ mod tests {
             &blank_groth_params,
         )
         .expect("failed while proving");
-        println!("-- VERIFY");
+
         let verified = ZigZagCompound::verify(&public_params, &public_inputs, &proof)
             .expect("failed while verifying");
 
