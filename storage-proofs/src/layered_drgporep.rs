@@ -12,7 +12,7 @@ use crate::drgporep::{self, DrgPoRep};
 use crate::drgraph::Graph;
 use crate::error::{Error, Result};
 use crate::hasher::{Domain, HashFunction, Hasher};
-use crate::merkle::{MerkleTree, VecStore};
+use crate::merkle::{MerkleTree, MmapStore};
 use crate::parameter_cache::ParameterSetIdentifier;
 use crate::porep::{self, PoRep};
 use crate::proof::ProofScheme;
@@ -20,7 +20,7 @@ use crate::vde;
 use crate::SP_LOG;
 
 type Tree<H> =
-    MerkleTree<<H as Hasher>::Domain, <H as Hasher>::Function, VecStore<<H as Hasher>::Domain>>;
+    MerkleTree<<H as Hasher>::Domain, <H as Hasher>::Function, MmapStore<<H as Hasher>::Domain>>;
 
 #[derive(Debug, Clone)]
 pub enum LayerChallenges {

@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use crate::error::*;
 use crate::hasher::pedersen::PedersenHasher;
 use crate::hasher::{Domain, Hasher};
-use crate::merkle::{MerkleTree, VecStore};
+use crate::merkle::{MerkleTree, MmapStore};
 use crate::parameter_cache::ParameterSetIdentifier;
 use crate::util::data_at_node;
 /// The default hasher currently in use.
@@ -26,7 +26,7 @@ pub trait Graph<H: Hasher>: ::std::fmt::Debug + Clone + PartialEq + Eq {
     fn merkle_tree<'a>(
         &self,
         data: &'a [u8],
-    ) -> Result<MerkleTree<H::Domain, H::Function, VecStore<H::Domain>>> {
+    ) -> Result<MerkleTree<H::Domain, H::Function, MmapStore<H::Domain>>> {
         self.merkle_tree_aux(data, 32, PARALLEL_MERKLE)
     }
 
@@ -36,7 +36,7 @@ pub trait Graph<H: Hasher>: ::std::fmt::Debug + Clone + PartialEq + Eq {
         data: &'a [u8],
         node_size: usize,
         parallel: bool,
-    ) -> Result<MerkleTree<H::Domain, H::Function, VecStore<H::Domain>>> {
+    ) -> Result<MerkleTree<H::Domain, H::Function, MmapStore<H::Domain>>> {
         if data.len() != (node_size * self.size()) as usize {
             return Err(Error::InvalidMerkleTreeArgs(
                 data.len(),

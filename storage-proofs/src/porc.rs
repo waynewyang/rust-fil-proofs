@@ -8,7 +8,7 @@ use serde::ser::Serialize;
 use crate::drgraph::graph_height;
 use crate::error::{Error, Result};
 use crate::hasher::{Domain, Hasher};
-use crate::merkle::{MerkleProof, MerkleTree, VecStore};
+use crate::merkle::{MerkleProof, MerkleTree, MmapStore};
 use crate::parameter_cache::ParameterSetIdentifier;
 use crate::proof::ProofScheme;
 
@@ -49,7 +49,7 @@ pub struct PublicInputs<'a, T: 'a + Domain> {
 
 #[derive(Debug, Clone)]
 pub struct PrivateInputs<'a, H: 'a + Hasher> {
-    pub trees: &'a [&'a MerkleTree<H::Domain, H::Function, VecStore<H::Domain>>],
+    pub trees: &'a [&'a MerkleTree<H::Domain, H::Function, MmapStore<H::Domain>>],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

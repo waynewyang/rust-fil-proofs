@@ -284,12 +284,12 @@ mod tests {
 
     use merkle_light::hash::Hashable;
 
-    use crate::merkle::{MerkleTree, VecStore};
+    use crate::merkle::{MerkleTree, MmapStore};
     #[test]
     fn test_path() {
         let values = ["hello", "world", "you", "two"];
         let t =
-            MerkleTree::<PedersenDomain, PedersenFunction, VecStore<_>>::from_data(values.iter());
+            MerkleTree::<PedersenDomain, PedersenFunction, MmapStore<_>>::from_data(values.iter());
 
         let p = t.gen_proof(0); // create a proof for the first value = "hello"
         assert_eq!(*p.path(), vec![true, true]);
@@ -301,7 +301,7 @@ mod tests {
         let values = ["hello", "world", "you", "two"];
 
         let t =
-            MerkleTree::<PedersenDomain, PedersenFunction, VecStore<_>>::from_data(values.iter());
+            MerkleTree::<PedersenDomain, PedersenFunction, MmapStore<_>>::from_data(values.iter());
 
         assert_eq!(t.leafs(), 4);
 

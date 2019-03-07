@@ -8,7 +8,7 @@ use crate::crypto;
 use crate::error;
 use crate::fr32::{bytes_into_fr, fr_into_bytes};
 use crate::hasher::pedersen::{PedersenDomain, PedersenFunction, PedersenHasher};
-use crate::merkle::{MerkleProof, MerkleTree, VecStore};
+use crate::merkle::{MerkleProof, MerkleTree, MmapStore};
 #[macro_export]
 macro_rules! table_tests {
     ($property_test_func:ident {
@@ -82,7 +82,7 @@ pub fn fake_drgpoprep_proof<R: Rng>(
     }
 
     // get commR
-    let subtree = MerkleTree::<PedersenDomain, PedersenFunction, VecStore<_>>::from_data(leaves);
+    let subtree = MerkleTree::<PedersenDomain, PedersenFunction, MmapStore<_>>::from_data(leaves);
     let subtree_root: Fr = subtree.root().into();
     let subtree_depth = subtree.height() - 1; // .height() inludes the leaf
     let remaining_depth = tree_depth - subtree_depth;

@@ -27,7 +27,7 @@ use storage_proofs::fr32::{bytes_into_fr, fr_into_bytes, Fr32Ary};
 use storage_proofs::hasher::pedersen::{PedersenDomain, PedersenHasher};
 use storage_proofs::hasher::{Domain, Hasher};
 use storage_proofs::layered_drgporep::{self, LayerChallenges};
-use storage_proofs::merkle::{MerkleTree, VecStore};
+use storage_proofs::merkle::{MerkleTree, MmapStore};
 use storage_proofs::porep::{replica_id, PoRep, Tau};
 use storage_proofs::proof::ProofScheme;
 use storage_proofs::vdf_post::{self, VDFPoSt};
@@ -420,7 +420,7 @@ fn verify_post_fixed_sectors_count(
 }
 
 type Tree =
-    MerkleTree<PedersenDomain, <PedersenHasher as Hasher>::Function, VecStore<PedersenDomain>>;
+    MerkleTree<PedersenDomain, <PedersenHasher as Hasher>::Function, MmapStore<PedersenDomain>>;
 fn make_merkle_tree<T: Into<PathBuf> + AsRef<Path>>(
     sealed_path: T,
     bytes: PaddedBytesAmount,

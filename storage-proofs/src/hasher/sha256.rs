@@ -13,7 +13,7 @@ mod tests {
     use std::fmt;
     use std::iter::FromIterator;
 
-    use crate::merkle::{MerkleTree, VecStore};
+    use crate::merkle::{MerkleTree, MmapStore};
     use merkle_light::hash::{Algorithm, Hashable};
 
     use super::super::{DigestDomain, Hasher};
@@ -108,12 +108,12 @@ mod tests {
         let t = MerkleTree::<
             <Sha256Hasher as Hasher>::Domain,
             <Sha256Hasher as Hasher>::Function,
-            VecStore<_>,
+            MmapStore<_>,
         >::from_iter(v);
         let t2 = MerkleTree::<
             <Sha256Hasher as Hasher>::Domain,
             <Sha256Hasher as Hasher>::Function,
-            VecStore<_>,
+            MmapStore<_>,
         >::from_iter(v2);
 
         assert_eq!(t2.as_slice()[0].as_ref(), l1.as_ref());
