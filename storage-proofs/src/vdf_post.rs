@@ -336,6 +336,7 @@ fn derive_partial_challenges<H: Hasher>(count: usize, seed: &[u8]) -> Vec<H::Dom
 pub struct ChallengeStream<H: Hasher, V: Vdf<H::Domain>> {
     partial_challenges: Option<Vec<H::Domain>>,
     challenge_count: usize,
+    challenge_rounds: usize,
     partial_challenge_count: usize,
     sectors_count: usize,
     challenge_bits: usize,
@@ -347,6 +348,7 @@ impl<H: Hasher, V: Vdf<H::Domain>> ChallengeStream<H, V> {
     /// `new` initializes a new, stateful, `ChallengeStream` with these parameters.
     pub fn new(pp: &PublicParams<H::Domain, V>) -> ChallengeStream<H, V> {
         let challenge_count = pp.challenge_count;
+        let challenge_rounds = pp.post_epochs;
         let sectors_count = pp.sectors_count;
         let challenge_bits = pp.challenge_bits;
         let sub_challenges = pp.seed_bits / challenge_bits;
@@ -356,6 +358,7 @@ impl<H: Hasher, V: Vdf<H::Domain>> ChallengeStream<H, V> {
         ChallengeStream {
             partial_challenges: None,
             challenge_count,
+            challenge_rounds,
             partial_challenge_count,
             sectors_count,
             challenge_bits,
@@ -370,7 +373,7 @@ impl<H: Hasher, V: Vdf<H::Domain>> ChallengeStream<H, V> {
     fn ensure_partial_challenges(&mut self, mix: H::Domain) {
         if self.partial_challenges.is_none() {
             let partial_challenges = derive_partial_challenges::<H>(
-                self.partial_challenge_count,
+                self.challenge_rounds * self.partial_challenge_count,
                 &fr_into_bytes::<Bls12>(&mix.into()),
             );
 
