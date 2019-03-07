@@ -89,7 +89,10 @@ where
 
         assert_eq!(vanilla_proof.porep_proofs.len(), post_epochs);
         assert_eq!(vanilla_proof.ys.len(), post_epochs - 1);
-        assert_eq!(vanilla_proof.challenges.len(), challenge_count);
+        assert!(
+            vanilla_proof.challenges.len() <= challenge_count,
+            "too many challenges"
+        );
 
         let vdf_ys = vanilla_proof
             .ys
