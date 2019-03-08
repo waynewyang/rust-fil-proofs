@@ -90,20 +90,15 @@ pub fn decode_domain_block<'a, H>(
     degree: usize,
     sloth_iter: usize,
     replica_id: &'a H::Domain,
-    data: &'a [H::Domain],
+    byte_data: &[u8],
     v: usize,
+    node_data: <H as Hasher>::Domain,
     parents: Vec<usize>,
 ) -> Result<H::Domain>
 where
     H: Hasher,
 {
-    let byte_data = data
-        .iter()
-        .flat_map(H::Domain::into_bytes)
-        .collect::<Vec<u8>>();
-
     let key = create_key::<H>(replica_id, v, &parents, &byte_data, degree)?;
-    let node_data = data[v];
 
     // TODO: round constant
     Ok(H::sloth_decode(&key, &node_data, sloth_iter))
