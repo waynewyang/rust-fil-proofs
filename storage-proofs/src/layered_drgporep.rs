@@ -265,8 +265,8 @@ pub trait Layers {
 
             let new_priv_inputs = drgporep::PrivateInputs {
                 aux: &porep::ProverAux {
-                    tree_d: aux[layer].clone(),
-                    tree_r: aux[layer + 1].clone(),
+                    tree_d: aux[layer],
+                    tree_r: aux[layer + 1],
                 },
             };
             let layer_diff = total_layers - inner_layers;
