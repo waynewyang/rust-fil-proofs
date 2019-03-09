@@ -254,46 +254,46 @@ pub trait Layers {
         assert!(layers > 0);
 
         let mut new_pp = None;
+        let mut result = Vec::new();
 
-        (0..layers)
-            .map(|layer| {
-                let pp = match new_pp {
-                    Some(ref new_pp) => new_pp,
-                    None => pp,
-                };
-                let inner_layers = layers - layer;
+        for layer in 0..layers {
+            let pp = match new_pp {
+                Some(ref new_pp) => new_pp,
+                None => pp,
+            };
+            let inner_layers = layers - layer;
 
-                let new_priv_inputs = drgporep::PrivateInputs {
-                    aux: &porep::ProverAux {
-                        tree_d: aux[layer].clone(),
-                        tree_r: aux[layer + 1].clone(),
-                    },
-                };
-                let layer_diff = total_layers - inner_layers;
+            let new_priv_inputs = drgporep::PrivateInputs {
+                aux: &porep::ProverAux {
+                    tree_d: aux[layer].clone(),
+                    tree_r: aux[layer + 1].clone(),
+                },
+            };
+            let layer_diff = total_layers - inner_layers;
 
-                let partition_proofs: Vec<_> = (0..partition_count)
-                    .into_par_iter()
-                    .map(|k| {
-                        let drgporep_pub_inputs = drgporep::PublicInputs {
-                            replica_id: pub_inputs.replica_id,
-                            challenges: pub_inputs.challenges(
-                                layer_challenges,
-                                pp.graph.size(),
-                                layer_diff as u8,
-                                Some(k),
-                            ),
-                            tau: Some(tau[layer]),
-                        };
+            let partition_proofs: Vec<_> = (0..partition_count)
+                .into_par_iter()
+                .map(|k| {
+                    let drgporep_pub_inputs = drgporep::PublicInputs {
+                        replica_id: pub_inputs.replica_id,
+                        challenges: pub_inputs.challenges(
+                            layer_challenges,
+                            pp.graph.size(),
+                            layer_diff as u8,
+                            Some(k),
+                        ),
+                        tau: Some(tau[layer]),
+                    };
 
-                        DrgPoRep::prove(pp, &drgporep_pub_inputs, &new_priv_inputs)
-                    })
-                    .collect::<Result<Vec<_>>>()?;
+                    DrgPoRep::prove(pp, &drgporep_pub_inputs, &new_priv_inputs)
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-                new_pp = Some(Self::transform(pp, layer_diff, total_layers));
+            new_pp = Some(Self::transform(pp, layer_diff, total_layers));
 
-                Ok(partition_proofs)
-            })
-            .collect::<Result<Vec<_>>>()
+            result.push(partition_proofs)
+        }
+        Ok(result)
     }
 
     fn extract_and_invert_transform_layers<'a>(
